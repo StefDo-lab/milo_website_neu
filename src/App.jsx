@@ -1,159 +1,15 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "./lib/supabaseClient";
+import { AuthProvider, useAuth } from "./lib/auth";
 
 /* ------------------------------------------------------------
-   Coach Milo – Vollständige Single-File React App
-   - Markdown-Export (.md) + Write-Fallback (neues Tab)
-   - Clipboard-Buttons (Fallback gegen iFrame-Download-Blocker)
-   - .md-Loader: Blogposts aus Dateien unter /public/content/posts/
-   - UI-Fixes: lesbare Tabs, konsistente Breite, schwarzer Hintergrund
+   Coach Milo – Vollständige App.jsx
+   - Öffentliche Seiten wie in deiner großen Version (Hero, Warum, Schritte, Features, FAQ, Blog, Kontakt, Recht, Debug)
+   - Admin: Supabase (Login E-Mail+Passwort), CRUD für cms_posts, Bild-Upload in cms_images
+   - Beta-Signups: schreiben in cms_signups (statt LocalStorage)
 ------------------------------------------------------------ */
 
-/* ---------- LocalStorage Keys & Utils ---------- */
-const LS_KEYS = {
-  settings: "cm_site_settings_v1",
-  features: "cm_features_v1",
-  faqs: "cm_faqs_v1",
-  posts: "cm_posts_v1",
-  signups: "cm_beta_signups_v1",
-  adminPw: "cm_admin_pw",
-};
-
-function loadLS(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveLS(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-function download(filename, text, type = "text/plain") {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function isInIframe() {
-  try {
-    return window.self !== window.top;
-  } catch {
-    return true;
-  }
-}
-
-function escapeHtml(s = "") {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[c]);
-}
-
-// Clipboard Helper (mit Fallback)
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    alert("Inhalt wurde in die Zwischenablage kopiert.");
-  } catch (e) {
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
-      alert("Inhalt wurde in die Zwischenablage kopiert.");
-    } catch {
-      alert("Kopieren fehlgeschlagen. Bitte manuell kopieren.");
-    }
-  }
-}
-
-// Write-Fallback: Öffnet about:blank mit Download-/Copy-Buttons + <pre>
-function tryDownloadOrOpen(filename, text, type = "text/plain") {
-  try {
-    download(filename, text, type);
-  } catch {}
-  if (isInIframe()) {
-    const w = window.open("", "_blank");
-    const b64 = (() => {
-      try {
-        return btoa(unescape(encodeURIComponent(text)));
-      } catch {
-        return btoa(text);
-      }
-    })();
-    const html = `<!doctype html><meta charset="utf-8"><title>${escapeHtml(
-      filename
-    )}</title>
-<style>body{font-family:ui-sans-serif,system-ui,Arial,sans-serif;background:#0b0b0b;color:#e5e7eb;padding:16px}button{display:inline-block;padding:8px 12px;border-radius:8px;margin:4px;background:#10b981;color:#0b0b0b;border:0;cursor:pointer}pre{white-space:pre-wrap;word-break:break-word;background:#111827;border:1px solid #1f2937;border-radius:8px;padding:12px}</style>
-<h1>${escapeHtml(filename)}</h1>
-<p>Speichere die Datei mit <b>Cmd/Ctrl+S</b> oder nutze die Buttons unten.</p>
-<button id="dlbtn">Download .md</button>
-<button id="cpbtn" style="background:#60a5fa;color:#0b0b0b">Inhalt kopieren</button>
-<pre id="content">${escapeHtml(text)}</pre>
-<script>
-(function(){
-  const fname = ${JSON.stringify(filename)};
-  const type = ${JSON.stringify(type)};
-  const b64 = ${JSON.stringify(b64)};
-  const dec=(b64)=>{try{return decodeURIComponent(escape(atob(b64)));}catch(e){return atob(b64)}};
-  const text=dec(b64);
-  const pre=document.getElementById('content'); if(pre && !pre.textContent) pre.textContent=text;
-  document.getElementById('dlbtn').addEventListener('click', function(){
-    try {
-      const blob=new Blob([text],{type:type||'text/markdown'});
-      const url=(window.URL||window.webkitURL).createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url; a.download=fname; a.style.display='none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function(){ (window.URL||window.webkitURL).revokeObjectURL(url); a.remove(); }, 1000);
-    } catch(e) {
-      alert('Download konnte nicht gestartet werden: '+e.message+'\\nDu kannst den Inhalt unten auch mit Cmd/Ctrl+S speichern oder den Button \"Inhalt kopieren\" nutzen.');
-    }
-  }, { once:false });
-  document.getElementById('cpbtn').addEventListener('click', function(){
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function(){ alert('Inhalt wurde in die Zwischenablage kopiert.'); }).catch(function(){ throw new Error('Clipboard API verweigert'); });
-      } else { throw new Error('Clipboard API nicht verfügbar'); }
-    } catch(err) {
-      try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('Inhalt wurde in die Zwischenablage kopiert.'); }
-      catch(e2){ alert('Kopieren fehlgeschlagen. Bitte Text manuell markieren und kopieren.'); }
-    }
-  }, { once:false });
-})();
-</script>`;
-    if (w && w.document) {
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-    } else {
-      const dataUrl =
-        "data:text/html;charset=utf-8," + encodeURIComponent(html);
-      const tmp = document.createElement("a");
-      tmp.href = dataUrl;
-      tmp.target = "_blank";
-      document.body.appendChild(tmp);
-      tmp.click();
-      tmp.remove();
-    }
-  }
-}
-
+/* ---------- Utils ---------- */
 function uid() {
   try {
     return crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
@@ -161,281 +17,70 @@ function uid() {
     return `id-${Math.random().toString(36).slice(2)}`;
   }
 }
-
-/* ---------- Markdown/Frontmatter Helpers ---------- */
-function toIsoDateOnly(d) {
-  try {
-    return new Date(d).toISOString().slice(0, 10);
-  } catch {
-    return new Date().toISOString().slice(0, 10);
-  }
+function isPlausibleUrl(u) { try { return !!new URL(u).host; } catch { return false; } }
+function escapeHtml(s = "") {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 
-function normalizeSlug(slug, publishedAt) {
-  // Ziel: yyyy-mm-dd-slug
-  const base = (slug || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-  const hasDate = /^\d{4}-\d{2}-\d{2}-/.test(base);
-  const datePart = toIsoDateOnly(publishedAt || new Date());
-  return hasDate ? base : `${datePart}-${base || "post"}`;
-}
+/* ---------- Layout / UI ---------- */
+const Container = ({ children }) => (
+  <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
+);
+const Badge = ({ children }) => (
+  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
+    {children}
+  </span>
+);
+const Section = ({ title, subtitle, children }) => (
+  <section className="py-12 md:py-16">
+    <Container>
+      {title && <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">{title}</h2>}
+      {subtitle && <p className="text-white/70 mb-6 max-w-3xl">{subtitle}</p>}
+      {children}
+    </Container>
+  </section>
+);
+const Card = ({ children }) => (
+  <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/0 p-5">
+    {children}
+  </div>
+);
+const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
+  const base = "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2 focus:ring-emerald-400 bg-transparent";
+  const st = variant === "primary"
+    ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
+    : "text-white border border-white/20 hover:bg-white/10";
+  return <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>{children}</button>;
+};
+const Input=(p)=>(<input {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
+const Select=(p)=>(<select {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
+const Textarea=(p)=>(<textarea {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
 
-function escapeYaml(str = "") {
-  return String(str).replace(/"/g, '\\"');
-}
-
-function isPlausibleUrl(u) {
-  if (!u) return false;
-  try {
-    const x = new URL(u);
-    return !!x.protocol && !!x.host;
-  } catch {
-    return false;
-  }
-}
-
-function postToMarkdown(post) {
-  const slug = normalizeSlug(post.slug, post.publishedAt);
-  const tags = Array.isArray(post.tags)
-    ? post.tags
-    : String(post.tags || "")
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-  const fm = [
-    "---",
-    `id: ${post.id || uid()}`,
-    `title: "${escapeYaml(post.title || "Ohne Titel")}"`,
-    `excerpt: "${escapeYaml(post.excerpt || "")}"`,
-    `slug: "${slug}"`,
-    `published: ${!!post.published}`,
-    `publishedAt: ${post.publishedAt || new Date().toISOString()}`,
-    `tags: [${tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`,
-    `coverImage: "${escapeYaml(post.coverImage || "")}"`,
-    `author: "${escapeYaml(post.author || "")}"`,
-    "---",
-    (post.bodyMd || "").trim() || "(Inhalt folgt)\n",
-  ].join("\n");
-  return { slug, content: fm };
-}
-
-function exportPostAsMarkdown(post) {
-  const { slug, content } = postToMarkdown(post);
-  const fname = `content/posts/${slug}.md`;
-  tryDownloadOrOpen(fname, content, "text/markdown");
-}
-
-function exportAllPostsAsMarkdown(posts) {
-  (posts || []).forEach((p) => exportPostAsMarkdown(p));
-}
-
-/* ---------- Default Content ---------- */
+/* ---------- Content Defaults (Features/FAQ lokal; Blog via Supabase) ---------- */
 const DEFAULT_SETTINGS = {
   brand: "Coach Milo",
   heroTitle: "Die Fitness-App mit deinem persönlichen KI-Coach",
-  heroSubtitle:
-    "Individuelle Trainingspläne, die deine Situation, dein Niveau und deine Fortschritte berücksichtigen.",
+  heroSubtitle: "Individuelle Trainingspläne, die deine Situation, dein Niveau und deine Fortschritte berücksichtigen.",
   releaseBanner: "Ab Oktober 2025 im App Store & Play Store",
   betaCta: "Teste Coach Milo schon vor dem Release",
   accent: "#4ade80",
   heroImageMode: "inline", // "inline" | "url"
   heroImageUrl: "/hero-image.png",
 };
-
 const DEFAULT_FEATURES = [
-  {
-    id: "f1",
-    title: "Individuelle Trainingspläne",
-    body:
-      "Milo baut deinen Plan aus Zielen, Equipment und Zeit. Passt Sätze/Wdh. automatisch an.",
-    icon: "💪",
-  },
-  {
-    id: "f2",
-    title: "Fortschritts-Tracking",
-    body:
-      "Tracke Workouts schnell. Milo erkennt Plateaus und empfiehlt passende Methoden.",
-    icon: "📈",
-  },
-  {
-    id: "f3",
-    title: "Übungsbibliothek (GIFs)",
-    body:
-      "Saubere Ausführung dank visueller Beispiele. Alternativen für jedes Niveau.",
-    icon: "🎞️",
-  },
-  {
-    id: "f4",
-    title: "Feedback-Loops",
-    body:
-      "Nach jedem Training bekommst du kurzes, konstruktives Feedback – wie vom Coach.",
-    icon: "🗣️",
-  },
-  {
-    id: "f5",
-    title: "Sharing & Motivation",
-    body: "Teile Highlights mit Freunden – für mehr Spaß und Motivation.",
-    icon: "✨",
-  },
+  { id: "f1", title: "Individuelle Trainingspläne", body: "Milo baut deinen Plan aus Zielen, Equipment und Zeit. Passt Sätze/Wdh. automatisch an.", icon: "💪" },
+  { id: "f2", title: "Fortschritts-Tracking", body: "Tracke Workouts schnell. Milo erkennt Plateaus und empfiehlt passende Methoden.", icon: "📈" },
+  { id: "f3", title: "Übungsbibliothek (GIFs)", body: "Saubere Ausführung dank visueller Beispiele. Alternativen für jedes Niveau.", icon: "🎞️" },
+  { id: "f4", title: "Feedback-Loops", body: "Nach jedem Training bekommst du kurzes, konstruktives Feedback – wie vom Coach.", icon: "🗣️" },
+  { id: "f5", title: "Sharing & Motivation", body: "Teile Highlights mit Freunden – für mehr Spaß und Motivation.", icon: "✨" },
 ];
-
 const DEFAULT_FAQS = [
-  {
-    id: "q1",
-    question: "Für wen ist Coach Milo geeignet?",
-    answer:
-      "Für Einsteiger bis Fortgeschrittene. Milo passt Volumen und Intensität an deine Erfahrung an.",
-  },
-  {
-    id: "q2",
-    question: "Brauche ich spezielles Equipment?",
-    answer:
-      "Nein. Du kannst im Studio, zu Hause oder unterwegs trainieren – Milo berücksichtigt dein Setup.",
-  },
-  {
-    id: "q3",
-    question: "Wie funktioniert die Beta?",
-    answer:
-      "Du meldest dich mit E-Mail an und bekommst frühzeitig Zugang. Feedback hilft uns, Milo zu schärfen.",
-  },
+  { id: "q1", question: "Für wen ist Coach Milo geeignet?", answer: "Für Einsteiger bis Fortgeschrittene. Milo passt Volumen und Intensität an deine Erfahrung an." },
+  { id: "q2", question: "Brauche ich spezielles Equipment?", answer: "Nein. Du kannst im Studio, zu Hause oder unterwegs trainieren – Milo berücksichtigt dein Setup." },
+  { id: "q3", question: "Wie funktioniert die Beta?", answer: "Melde dich mit E-Mail an und erhalte frühzeitig Zugang. Feedback hilft uns, Milo zu schärfen." },
 ];
 
-const DEFAULT_POSTS = [
-  {
-    id: "p1",
-    slug: "2025-08-30-roadmap-oktober",
-    title: "Roadmap bis Oktober",
-    excerpt: "Was bis zum Release passiert – und wie du mitwirken kannst.",
-    bodyMd:
-      "## Roadmap\n\n- Feinschliff der Trainingsplan-Engine\n- Beta-Feedback integrieren\n- App & Play Store Listings vorbereiten\n",
-    published: true,
-    publishedAt: new Date().toISOString(),
-    tags: ["roadmap"],
-    coverImage: "",
-    author: "Coach Milo Team",
-  },
-];
-
-/* ---------- Router ---------- */
-const PAGES = [
-  "Home",
-  "Features",
-  "How",
-  "Blog",
-  "FAQ",
-  "Kontakt",
-  "Recht",
-  "Admin",
-  "Debug",
-];
-
-function usePage() {
-  const [page, setPage] = useState(() => {
-    const hash =
-      (typeof window !== "undefined" && location.hash.replace("#", "")) ||
-      "Home";
-    return PAGES.includes(hash) ? hash : "Home";
-  });
-  useEffect(() => {
-    const onHash = () => {
-      const h = location.hash.replace("#", "");
-      if (PAGES.includes(h)) setPage(h);
-    };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-  const navigate = (p) => {
-    location.hash = p;
-    setPage(p);
-  };
-  return { page, navigate };
-}
-
-/* ---------- UI Components ---------- */
-const Container = ({ children }) => (
-  <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
-);
-
-const Badge = ({ children }) => (
-  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-    {children}
-  </span>
-);
-
-const Section = ({ title, subtitle, children }) => (
-  <section className="py-12 md:py-16">
-    <Container>
-      {title && (
-        <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">
-          {title}
-        </h2>
-      )}
-      {subtitle && <p className="text-white/70 mb-6 max-w-3xl">{subtitle}</p>}
-      {children}
-    </Container>
-  </section>
-);
-
-const Card = ({ children }) => (
-  <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/0 p-5">
-    {children}
-  </div>
-);
-
-const Button = ({
-  children,
-  onClick,
-  variant = "primary",
-  type = "button",
-  className = "",
-}) => {
-  const base =
-    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none " +
-    "focus:ring-2 focus:ring-emerald-400 bg-transparent"; // ← verhindert „weiße Pillen“
-
-  const styles =
-    variant === "primary"
-      ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
-      : "text-white border border-white/20 hover:bg-white/10";
-
-  return (
-    <button type={type} onClick={onClick} className={`${base} ${styles} ${className}`}>
-      {children}
-    </button>
-  );
-};
-
-
-const Input = (props) => (
-  <input
-    {...props}
-    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${
-      props.className || ""
-    }`}
-  />
-);
-
-const Select = (props) => (
-  <select
-    {...props}
-    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-400 ${
-      props.className || ""
-    }`}
-  />
-);
-
-const Textarea = (props) => (
-  <textarea
-    {...props}
-    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${
-      props.className || ""
-    }`}
-  />
-);
-
+/* ---------- Hero Image ---------- */
 function HeroImage({ settings }) {
   if (settings.heroImageMode === "url" && settings.heroImageUrl) {
     return (
@@ -446,15 +91,10 @@ function HeroImage({ settings }) {
       />
     );
   }
-  // Inline-SVG Platzhalter
+  // Inline SVG Platzhalter
   return (
     <div className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10 overflow-hidden">
-      <svg
-        viewBox="0 0 1200 600"
-        role="img"
-        aria-label="Coach Milo Preview"
-        className="w-full h-auto"
-      >
+      <svg viewBox="0 0 1200 600" className="w-full h-auto" role="img" aria-label="Coach Milo Preview">
         <defs>
           <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0%" stopColor={settings.accent} />
@@ -462,24 +102,8 @@ function HeroImage({ settings }) {
           </linearGradient>
         </defs>
         <rect width="1200" height="600" fill="#0a0a0a" />
-        <rect
-          x="60"
-          y="50"
-          width="320"
-          height="500"
-          rx="36"
-          fill="url(#g)"
-          opacity="0.25"
-        />
-        <rect
-          x="500"
-          y="50"
-          width="640"
-          height="500"
-          rx="24"
-          fill="url(#g)"
-          opacity="0.15"
-        />
+        <rect x="60" y="50" width="320" height="500" rx="36" fill="url(#g)" opacity="0.25" />
+        <rect x="500" y="50" width="640" height="500" rx="24" fill="url(#g)" opacity="0.15" />
         <g>
           <rect x="520" y="90" width="600" height="60" rx="12" fill="#111827" />
           <rect x="540" y="105" width="220" height="30" rx="8" fill="#10b981" opacity="0.7" />
@@ -503,7 +127,7 @@ function HeroImage({ settings }) {
   );
 }
 
-/* ---------- Beta Signup ---------- */
+/* ---------- Beta Signup (Supabase) ---------- */
 function BetaForm({ settings }) {
   const [email, setEmail] = useState("");
   const [goal, setGoal] = useState("Hypertrophie");
@@ -511,17 +135,26 @@ function BetaForm({ settings }) {
   const [consent, setConsent] = useState(false);
   const [ok, setOk] = useState("");
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    if (!email || !consent)
-      return setOk("Bitte E-Mail eintragen und Einwilligung bestätigen.");
-    const now = new Date().toISOString();
-    const current = loadLS(LS_KEYS.signups, []);
-    current.push({ id: uid(), email, goal, experience: exp, createdAt: now });
-    saveLS(LS_KEYS.signups, current);
-    setOk("Danke! Wir melden uns mit Beta-Details.");
-    setEmail("");
-    setConsent(false);
+    setOk("");
+    if (!email || !consent) {
+      setOk("Bitte E-Mail eintragen und Einwilligung bestätigen.");
+      return;
+    }
+    try {
+      const { error } = await supabase.from("cms_signups").insert({
+        email,
+        goal,
+        experience: exp,
+      });
+      if (error) throw error;
+      setOk("Danke! Wir melden uns mit Beta-Details.");
+      setEmail("");
+      setConsent(false);
+    } catch (err) {
+      setOk("Fehler beim Anmelden: " + (err?.message || "Unbekannt"));
+    }
   }
 
   return (
@@ -534,21 +167,13 @@ function BetaForm({ settings }) {
         className="md:col-span-2"
         aria-label="E-Mail"
       />
-      <Select
-        value={goal}
-        onChange={(e) => setGoal(e.target.value)}
-        aria-label="Ziel"
-      >
+      <Select value={goal} onChange={(e) => setGoal(e.target.value)} aria-label="Ziel">
         <option>Hypertrophie</option>
         <option>Fettverlust</option>
         <option>Athletik</option>
         <option>Allgemeine Fitness</option>
       </Select>
-      <Select
-        value={exp}
-        onChange={(e) => setExp(e.target.value)}
-        aria-label="Erfahrung"
-      >
+      <Select value={exp} onChange={(e) => setExp(e.target.value)} aria-label="Erfahrung">
         <option>Einsteiger</option>
         <option>Fortgeschritten</option>
         <option>Pro</option>
@@ -566,16 +191,14 @@ function BetaForm({ settings }) {
         </label>
       </div>
       <div className="md:col-span-1">
-        <Button type="submit">
-          {settings?.betaCta || DEFAULT_SETTINGS.betaCta}
-        </Button>
+        <Button type="submit">{settings?.betaCta || DEFAULT_SETTINGS.betaCta}</Button>
       </div>
       {ok && <p className="text-emerald-300 text-sm md:col-span-4">{ok}</p>}
     </form>
   );
 }
 
-/* ---------- Markdown (mini, safe) ---------- */
+/* ---------- Markdown (minimal für lokale Texte, nicht für Blog) ---------- */
 function renderMarkdown(md) {
   if (!md) return "";
   return md
@@ -586,127 +209,33 @@ function renderMarkdown(md) {
     .replace(/\*(.+?)\*/g, "$1");
 }
 
-/* ---------- .md Loader (Frontmatter + Body) ---------- */
-function parseFrontmatter(md) {
-  const m = md.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!m) return { fm: {}, body: md };
-  const raw = m[1];
-  const body = m[2];
-  const fm = {};
-  raw.split(/\r?\n/).forEach((line) => {
-    if (!line.trim()) return;
-    const idx = line.indexOf(":");
-    if (idx === -1) return;
-    const key = line.slice(0, idx).trim();
-    let val = line.slice(idx + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    if (/^\[.*\]$/.test(val)) {
-      val = val
-        .slice(1, -1)
-        .split(",")
-        .map((s) => s.trim().replace(/^"|"$/g, ""))
-        .filter(Boolean);
-    } else if (val === "true" || val === "false") {
-      val = val === "true";
-    }
-    fm[key] = val;
-  });
-  return { fm, body };
-}
-
-async function loadPostMd(slug) {
-  const url = `/content/posts/${slug}.md?v=${Date.now()}`;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("not ok");
-    const text = await res.text();
-    const { fm, body } = parseFrontmatter(text);
-    return { fm, body };
-  } catch {
-    return null; // Datei (noch) nicht vorhanden
-  }
-}
-
-function mergePostWithMd(base, md) {
-  if (!md) return base;
-  const fm = md.fm || {};
-  return {
-    ...base,
-    title: fm.title || base.title,
-    excerpt: fm.excerpt || base.excerpt,
-    slug: fm.slug || base.slug,
-    published:
-      typeof fm.published === "boolean" ? fm.published : base.published,
-    publishedAt: fm.publishedAt || base.publishedAt,
-    tags: fm.tags || base.tags,
-    coverImage: fm.coverImage || base.coverImage,
-    author: fm.author || base.author,
-    bodyMd: md.body || base.bodyMd,
-  };
-}
-
-/* ---------- PostCard (lädt .md wenn vorhanden) ---------- */
-function PostCard({ post, compact = false }) {
-  const [data, setData] = useState(post);
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const md = await loadPostMd(normalizeSlug(post.slug, post.publishedAt));
-      if (mounted) setData(mergePostWithMd(post, md));
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [post.id, post.slug, post.publishedAt]);
-
+/* ---------- Public: Blog Post Karte (aus Supabase) ---------- */
+function PostCard({ post, compact=false }) {
   return (
     <Card>
-      <h3 className="text-white font-medium">{data.title}</h3>
-      {data.coverImage && isPlausibleUrl(data.coverImage) && (
-        <img
-          src={data.coverImage}
-          alt="Cover"
-          className="mt-2 rounded-lg border border-white/10"
+      <h3 className="text-white font-medium">{post.title}</h3>
+      {post.cover_url && isPlausibleUrl(post.cover_url) && (
+        <img src={post.cover_url} alt="Cover" className="mt-2 rounded border border-white/10" />
+      )}
+      {post.excerpt && <p className="text-white/60 text-sm mt-1">{post.excerpt}</p>}
+      {!compact && post.content_html && (
+        <article
+          className="prose prose-invert mt-3 text-white/80"
+          dangerouslySetInnerHTML={{ __html: post.content_html }}
         />
-      )}
-      {data.excerpt && (
-        <p className="text-white/60 text-sm mt-1">{data.excerpt}</p>
-      )}
-      {!compact && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-white/70 text-sm">
-            Lesen
-          </summary>
-          <article className="prose prose-invert mt-2 text-white/80 text-sm whitespace-pre-wrap">
-            {renderMarkdown(data.bodyMd)}
-          </article>
-        </details>
       )}
     </Card>
   );
 }
 
-/* ---------- Pages ---------- */
-function HomePage({ settings, features, faqs, posts }) {
-  const latestPosts = (posts || [])
-    .filter((p) => p.published)
-    .sort(
-      (a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)
-    )
-    .slice(0, 2);
+/* ---------- Seiten ---------- */
+function HomePage({ settings, features, faqs, publishedPosts }) {
+  const latest = (publishedPosts || []).slice(0, 2);
 
   return (
     <>
       {/* Hero */}
-      <section
-        className="relative overflow-hidden bg-gradient-to-b from-zinc-900 to-black py-16 md:py-24"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-      >
+      <section className="relative overflow-hidden bg-gradient-to-b from-zinc-900 to-black py-16 md:py-24 border-b border-white/10">
         <Container>
           <div className="mb-6">
             <Badge>{settings.releaseBanner}</Badge>
@@ -715,6 +244,7 @@ function HomePage({ settings, features, faqs, posts }) {
             {settings.heroTitle}
           </h1>
           <p className="text-white/70 mt-3 max-w-2xl">{settings.heroSubtitle}</p>
+
           <div className="mt-8">
             <HeroImage settings={settings} />
           </div>
@@ -725,9 +255,8 @@ function HomePage({ settings, features, faqs, posts }) {
       <Section title="Was ist Coach Milo?">
         <div className="text-white/80 max-w-3xl space-y-3">
           <p>
-            Coach Milo ist eine Fitness-App, die dir einen echten KI-Coach an
-            die Seite stellt. Kein Rätselraten mehr, sondern klare, individuell
-            angepasste Pläne.
+            Coach Milo ist eine Fitness-App, die dir einen echten KI-Coach an die Seite stellt.
+            Kein Rätselraten mehr, sondern klare, individuell angepasste Pläne.
           </p>
         </div>
       </Section>
@@ -736,27 +265,22 @@ function HomePage({ settings, features, faqs, posts }) {
       <Section title="Warum Coach Milo?">
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
-            <h3 className="text-white font-medium mb-2">
-              Pläne, die zu dir passen
-            </h3>
+            <h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3>
             <p className="text-white/70 text-sm">
               Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag.
               Jede Einheit ist auf dich zugeschnitten.
             </p>
           </Card>
           <Card>
-            <h3 className="text-white font-medium mb-2">
-              Mit dir besser werden
-            </h3>
+            <h3 className="text-white font-medium mb-2">Mit dir besser werden</h3>
             <p className="text-white/70 text-sm">
-              Deine Fortschritte fließen direkt in den Plan ein. So bleibst du
-              motiviert – ohne Stagnation.
+              Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.
             </p>
           </Card>
         </div>
       </Section>
 
-      {/* Wie bringt Milo dich weiter? */}
+      {/* Steps */}
       <Section title="So bringt dich Milo weiter">
         <div className="grid md:grid-cols-5 gap-4">
           {[
@@ -774,15 +298,11 @@ function HomePage({ settings, features, faqs, posts }) {
         </div>
       </Section>
 
-      {/* CTA (unten) */}
+      {/* Beta CTA unten */}
       <Section>
         <div className="flex flex-col items-center text-center gap-3">
-          <h3 className="text-white text-xl font-semibold">
-            Frühen Zugang sichern
-          </h3>
-          <p className="text-white/70">
-            Melde dich für die Beta an und werde Teil der Entwicklung.
-          </p>
+          <h3 className="text-white text-xl font-semibold">Frühen Zugang sichern</h3>
+          <p className="text-white/70">Melde dich für die Beta an und werde Teil der Entwicklung.</p>
           <div className="w-full max-w-2xl">
             <BetaForm settings={settings} />
           </div>
@@ -808,9 +328,7 @@ function HomePage({ settings, features, faqs, posts }) {
           {faqs.map((q) => (
             <Card key={q.id}>
               <details>
-                <summary className="text-white font-medium cursor-pointer">
-                  {q.question}
-                </summary>
+                <summary className="text-white font-medium cursor-pointer">{q.question}</summary>
                 <p className="text-white/70 text-sm mt-2">{q.answer}</p>
               </details>
             </Card>
@@ -821,14 +339,10 @@ function HomePage({ settings, features, faqs, posts }) {
       {/* Neu im Blog */}
       <Section title="Neu im Blog">
         <div className="space-y-4">
-          {latestPosts.length === 0 && (
-            <p className="text-white/60 text-sm">
-              Noch keine Artikel veröffentlicht.
-            </p>
+          {latest.length === 0 && (
+            <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
           )}
-          {latestPosts.map((p) => (
-            <PostCard key={p.id} post={p} compact />
-          ))}
+          {latest.map((p) => <PostCard key={p.id} post={p} compact />)}
         </div>
       </Section>
     </>
@@ -853,10 +367,7 @@ function FeaturesPage({ features }) {
 
 function HowPage() {
   return (
-    <Section
-      title="So funktioniert’s"
-      subtitle="Der Coach-Kreislauf – iterativ zur Bestform."
-    >
+    <Section title="So funktioniert’s" subtitle="Der Coach-Kreislauf – iterativ zur Bestform.">
       <ol className="list-decimal list-inside text-white/80 space-y-2">
         <li>Status erfassen (Ziele, Erfahrung, Equipment, Zeitbudget)</li>
         <li>Strategie ableiten (Volumen, Intensität, Frequenz)</li>
@@ -868,17 +379,11 @@ function HowPage() {
   );
 }
 
-function BlogPage({ posts }) {
-  const published = posts.filter((p) => p.published);
+function BlogPage({ publishedPosts }) {
   return (
-    <Section
-      title="Blog & Updates"
-      subtitle="Transparente Roadmap, Einblicke, Learnings."
-    >
+    <Section title="Blog & Updates" subtitle="Transparente Roadmap, Einblicke, Learnings.">
       <div className="space-y-4">
-        {published.map((p) => (
-          <PostCard key={p.id} post={p} />
-        ))}
+        {(publishedPosts || []).map((p) => <PostCard key={p.id} post={p} />)}
       </div>
     </Section>
   );
@@ -891,9 +396,7 @@ function FAQPage({ faqs }) {
         {faqs.map((q) => (
           <Card key={q.id}>
             <details>
-              <summary className="text-white font-medium cursor-pointer">
-                {q.question}
-              </summary>
+              <summary className="text-white font-medium cursor-pointer">{q.question}</summary>
               <p className="text-white/70 text-sm mt-2">{q.answer}</p>
             </details>
           </Card>
@@ -910,17 +413,12 @@ function KontaktPage() {
         <Card>
           <p className="text-white/80 text-sm">E-Mail: hello@coachmilo.app</p>
           <p className="text-white/60 text-xs mt-2">
-            Hinweis: Während der Beta antworten wir in der Regel innerhalb von
-            48 Stunden.
+            Hinweis: Während der Beta antworten wir in der Regel innerhalb von 48 Stunden.
           </p>
         </Card>
         <Card>
-          <p className="text-white/80 text-sm">
-            Geschäftlich/PR: press@coachmilo.app
-          </p>
-          <p className="text-white/60 text-xs mt-2">
-            Wir schicken dir gern unser Factsheet.
-          </p>
+          <p className="text-white/80 text-sm">Geschäftlich/PR: press@coachmilo.app</p>
+          <p className="text-white/60 text-xs mt-2">Wir schicken dir gern unser Factsheet.</p>
         </Card>
       </div>
     </Section>
@@ -939,8 +437,8 @@ function LegalPage() {
         <div>
           <h3 className="text-white font-medium">Datenschutz</h3>
           <p>
-            Wir verarbeiten Beta-E-Mails ausschließlich zur Kontaktaufnahme im
-            Rahmen der Beta. Auf Anfrage löschen wir deine Daten umgehend.
+            Wir verarbeiten Beta-E-Mails ausschließlich zur Kontaktaufnahme im Rahmen der Beta.
+            Auf Anfrage löschen wir deine Daten umgehend.
           </p>
         </div>
       </div>
@@ -948,614 +446,29 @@ function LegalPage() {
   );
 }
 
-/* ---------- Admin ---------- */
-function AdminPage({
-  settings,
-  setSettings,
-  features,
-  setFeatures,
-  faqs,
-  setFaqs,
-  posts,
-  setPosts,
-}) {
-  const [authed, setAuthed] = useState(false);
-  const [pw, setPw] = useState("");
-
-  function tryLogin(e) {
-    e.preventDefault();
-    const stored = loadLS(LS_KEYS.adminPw, null) || "milo-admin";
-    if (pw === stored) setAuthed(true);
-    else alert("Falsches Passwort");
-  }
-
-  function changePw() {
-    const npw = prompt("Neues Admin-Passwort setzen:");
-    if (npw && npw.length >= 6)
-      localStorage.setItem(LS_KEYS.adminPw, JSON.stringify(npw));
-    else alert("Mindestens 6 Zeichen.");
-  }
-
-  function addFeature() {
-    setFeatures([
-      ...features,
-      { id: uid(), title: "Neues Feature", body: "Beschreibung", icon: "⭐" },
-    ]);
-  }
-  function addFaq() {
-    setFaqs([
-      ...faqs,
-      { id: uid(), question: "Neue Frage?", answer: "Antwort…" },
-    ]);
-  }
-  function addPost() {
-    setPosts([
-      ...posts,
-      {
-        id: uid(),
-        slug: normalizeSlug("neuer-post", new Date().toISOString()),
-        title: "Neuer Post",
-        excerpt: "Kurzbeschreibung",
-        bodyMd: "# Überschrift\n\nInhalt…",
-        published: false,
-        publishedAt: new Date().toISOString(),
-        tags: [],
-        coverImage: "",
-        author: "",
-      },
-    ]);
-  }
-
-  function saveAll() {
-    saveLS(LS_KEYS.settings, settings);
-    saveLS(LS_KEYS.features, features);
-    saveLS(LS_KEYS.faqs, faqs);
-    saveLS(LS_KEYS.posts, posts);
-    alert("Gespeichert.");
-  }
-
-  function exportAll() {
-    const payload = {
-      settings,
-      features,
-      faqs,
-      posts,
-      exportedAt: new Date().toISOString(),
-    };
-    tryDownloadOrOpen(
-      "coach-milo-content.json",
-      JSON.stringify(payload, null, 2),
-      "application/json"
-    );
-  }
-
-  function exportSiteJsonOnly() {
-    const site = { settings, exportedAt: new Date().toISOString() };
-    tryDownloadOrOpen(
-      "site.json",
-      JSON.stringify(site, null, 2),
-      "application/json"
-    );
-  }
-
-  function importAll(ev) {
-    const file = ev.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result);
-        if (data.settings) setSettings(data.settings);
-        if (data.features) setFeatures(data.features);
-        if (data.faqs) setFaqs(data.faqs);
-        if (data.posts) setPosts(data.posts);
-        alert("Import erfolgreich.");
-      } catch (e) {
-        alert("Import fehlgeschlagen: " + e.message);
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function exportSignupsCsv() {
-    const rows = loadLS(LS_KEYS.signups, []);
-    const header = ["id", "email", "goal", "experience", "createdAt"].join(",");
-    const lines = rows.map((r) =>
-      [r.id, r.email, r.goal, r.experience, r.createdAt].join(",")
-    );
-    const csv = [header, ...lines].join("\n");
-    tryDownloadOrOpen("beta-signups.csv", csv, "text/csv");
-  }
-
-  return !authed ? (
-    <Section
-      title="Admin Login"
-      subtitle="Übergangs-Login (clientseitig). Bitte Passwort später ändern."
-    >
-      <div className="max-w-sm">
-        <form onSubmit={tryLogin} className="space-y-3">
-          <Input
-            type="password"
-            placeholder="Passwort"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-          />
-          <Button type="submit">Login</Button>
-          <p className="text-white/50 text-xs">Default: milo-admin</p>
-        </form>
-      </div>
-    </Section>
-  ) : (
-    <Section
-      title="Admin"
-      subtitle="Inhalte bearbeiten & exportieren (file-basiert)"
-    >
-      <div className="grid gap-4">
-        <Card>
-          <h3 className="text-white font-medium mb-3">Site Settings</h3>
-          <div className="grid md:grid-cols-2 gap-3">
-            <Input
-              value={settings.brand}
-              onChange={(e) =>
-                setSettings({ ...settings, brand: e.target.value })
-              }
-              placeholder="Brand"
-            />
-            <Input
-              value={settings.releaseBanner}
-              onChange={(e) =>
-                setSettings({ ...settings, releaseBanner: e.target.value })
-              }
-              placeholder="Release-Banner"
-            />
-            <Input
-              value={settings.heroTitle}
-              onChange={(e) =>
-                setSettings({ ...settings, heroTitle: e.target.value })
-              }
-              placeholder="Hero Titel"
-            />
-            <Input
-              value={settings.heroSubtitle}
-              onChange={(e) =>
-                setSettings({ ...settings, heroSubtitle: e.target.value })
-              }
-              placeholder="Hero Untertitel"
-            />
-            <Input
-              value={settings.betaCta}
-              onChange={(e) =>
-                setSettings({ ...settings, betaCta: e.target.value })
-              }
-              placeholder="Beta CTA"
-            />
-            <Input
-              value={settings.accent}
-              onChange={(e) =>
-                setSettings({ ...settings, accent: e.target.value })
-              }
-              placeholder="Akzentfarbe (#hex)"
-            />
-            <div className="md:col-span-1">
-              <label className="text-white/70 text-sm">Hero-Bild Modus</label>
-              <Select
-                value={settings.heroImageMode}
-                onChange={(e) =>
-                  setSettings({ ...settings, heroImageMode: e.target.value })
-                }
-              >
-                <option value="inline">Inline (SVG Platzhalter)</option>
-                <option value="url">Bild-URL</option>
-              </Select>
-            </div>
-            <Input
-              value={settings.heroImageUrl}
-              onChange={(e) =>
-                setSettings({ ...settings, heroImageUrl: e.target.value })
-              }
-              placeholder="Hero Bild URL (bei Modus: url)"
-            />
-          </div>
-          <div className="mt-3 flex gap-2 flex-wrap">
-            <Button onClick={saveAll}>Speichern</Button>
-            <Button variant="ghost" onClick={exportAll}>
-              Export JSON
-            </Button>
-            <Button variant="ghost" onClick={exportSiteJsonOnly}>
-              site.json speichern
-            </Button>
-            <label className="inline-flex items-center gap-2 text-sm text-white/70 cursor-pointer">
-              <span className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">
-                Import JSON
-              </span>
-              <input
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={importAll}
-              />
-            </label>
-            <Button variant="ghost" onClick={exportSignupsCsv}>
-              Beta-Signups CSV
-            </Button>
-            <Button variant="ghost" onClick={changePw}>
-              Passwort ändern
-            </Button>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-white font-medium">Features</h3>
-            <Button onClick={addFeature}>+ Feature</Button>
-          </div>
-          <div className="grid gap-3">
-            {features.map((f, idx) => (
-              <div
-                key={f.id}
-                className="grid md:grid-cols-12 gap-2 items-start"
-              >
-                <Input
-                  className="md:col-span-1"
-                  value={f.icon}
-                  onChange={(e) => {
-                    const v = [...features];
-                    v[idx] = { ...v[idx], icon: e.target.value };
-                    setFeatures(v);
-                  }}
-                />
-                <Input
-                  className="md:col-span-3"
-                  value={f.title}
-                  onChange={(e) => {
-                    const v = [...features];
-                    v[idx] = { ...v[idx], title: e.target.value };
-                    setFeatures(v);
-                  }}
-                />
-                <Input
-                  className="md:col-span-7"
-                  value={f.body}
-                  onChange={(e) => {
-                    const v = [...features];
-                    v[idx] = { ...v[idx], body: e.target.value };
-                    setFeatures(v);
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  className="md:col-span-1"
-                  onClick={() =>
-                    setFeatures(features.filter((x) => x.id !== f.id))
-                  }
-                >
-                  Entfernen
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-white font-medium">FAQ</h3>
-            <Button onClick={addFaq}>+ Frage</Button>
-          </div>
-          <div className="grid gap-3">
-            {faqs.map((q, idx) => (
-              <div
-                key={q.id}
-                className="grid md:grid-cols-12 gap-2 items-start"
-              >
-                <Input
-                  className="md:col-span-5"
-                  value={q.question}
-                  onChange={(e) => {
-                    const v = [...faqs];
-                    v[idx] = { ...v[idx], question: e.target.value };
-                    setFaqs(v);
-                  }}
-                />
-                <Input
-                  className="md:col-span-6"
-                  value={q.answer}
-                  onChange={(e) => {
-                    const v = [...faqs];
-                    v[idx] = { ...v[idx], answer: e.target.value };
-                    setFaqs(v);
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  onClick={() => setFaqs(faqs.filter((x) => x.id !== q.id))}
-                >
-                  Entfernen
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-white font-medium">Blog-Posts</h3>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => exportAllPostsAsMarkdown(posts)}>
-                Alle Posts als .md speichern
-              </Button>
-              <Button onClick={addPost}>+ Post</Button>
-            </div>
-          </div>
-          <p className="text-white/50 text-xs mb-2">
-            Workflow ohne Backend: .md herunterladen und im Projekt unter
-            <code className="ml-1">public/content/posts/</code> ablegen (Ordner ggf. anlegen).
-          </p>
-          <div className="grid gap-3">
-            {posts.map((p, idx) => (
-              <div key={p.id} className="grid gap-2">
-                <div className="grid md:grid-cols-12 gap-2 items-start">
-                  <Input
-                    className="md:col-span-3"
-                    value={p.slug}
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, {
-                        slug: e.target.value,
-                      })
-                    }
-                    placeholder="yyyy-mm-dd-slug"
-                  />
-                  <Input
-                    className="md:col-span-3"
-                    value={p.title}
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, {
-                        title: e.target.value,
-                      })
-                    }
-                    placeholder="Titel"
-                  />
-                  <Input
-                    className="md:col-span-3"
-                    value={p.excerpt}
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, {
-                        excerpt: e.target.value,
-                      })
-                    }
-                    placeholder="Kurzbeschreibung"
-                  />
-                  <Input
-                    className="md:col-span-3"
-                    value={p.author || ""}
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, {
-                        author: e.target.value,
-                      })
-                    }
-                    placeholder="Author"
-                  />
-                </div>
-                <div className="grid md:grid-cols-12 gap-2 items-start">
-                  <Input
-                    className="md:col-span-6"
-                    value={
-                      (Array.isArray(p.tags) ? p.tags.join(", ") : p.tags) || ""
-                    }
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, { tags: e.target.value })
-                    }
-                    placeholder="Tags (kommagetrennt)"
-                  />
-                  <Input
-                    className="md:col-span-6"
-                    value={p.coverImage || ""}
-                    onChange={(e) =>
-                      updatePost(setPosts, posts, idx, {
-                        coverImage: e.target.value,
-                      })
-                    }
-                    placeholder="Cover-Image-URL"
-                  />
-                </div>
-                <Textarea
-                  rows={8}
-                  value={p.bodyMd}
-                  onChange={(e) =>
-                    updatePost(setPosts, posts, idx, { bodyMd: e.target.value })
-                  }
-                />
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="inline-flex items-center gap-2 text-white/80 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={!!p.published}
-                      onChange={(e) =>
-                        updatePost(setPosts, posts, idx, {
-                          published: e.target.checked,
-                          publishedAt: e.target.checked
-                            ? p.publishedAt || new Date().toISOString()
-                            : p.publishedAt,
-                        })
-                      }
-                    />
-                    Veröffentlicht
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-white/60 text-xs">
-                    <span>Datum:</span>
-                    <Input
-                      type="datetime-local"
-                      value={
-                        p.publishedAt
-                          ? new Date(p.publishedAt).toISOString().slice(0, 16)
-                          : ""
-                      }
-                      onChange={(e) =>
-                        updatePost(setPosts, posts, idx, {
-                          publishedAt: new Date(e.target.value).toISOString(),
-                          slug: normalizeSlug(
-                            p.slug,
-                            new Date(e.target.value).toISOString()
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <Button
-                    variant="ghost"
-                    onClick={() => exportPostAsMarkdown(posts[idx])}
-                  >
-                    Als .md speichern
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      const slug = normalizeSlug(
-                        posts[idx].slug,
-                        posts[idx].publishedAt
-                      );
-                      copyToClipboard(`content/posts/${slug}.md`);
-                      alert(
-                        "Pfad kopiert: content/posts/" +
-                          slug +
-                          ".md\nLege die Datei unter public/content/posts/ ab."
-                      );
-                    }}
-                  >
-                    Pfad kopieren
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={async () => {
-                      const slug = normalizeSlug(
-                        posts[idx].slug,
-                        posts[idx].publishedAt
-                      );
-                      const md = await loadPostMd(slug);
-                      if (md)
-                        alert(".md gefunden und geladen: " + slug + ".md");
-                      else
-                        alert(
-                          "Keine .md unter public/content/posts/" +
-                            slug +
-                            ".md gefunden."
-                        );
-                    }}
-                  >
-                    .md testen (live laden)
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() =>
-                      setPosts(posts.filter((x) => x.id !== p.id))
-                    }
-                  >
-                    Entfernen
-                  </Button>
-                </div>
-                <div className="h-px bg-white/10" />
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </Section>
-  );
-}
-
-function updatePost(setter, posts, idx, patch) {
-  const v = [...posts];
-  v[idx] = { ...v[idx], ...patch };
-  setter(v);
-}
-
-/* ---------- Debug / Tests ---------- */
+/* ---------- Debug Tests (leicht) ---------- */
 function runTests(state) {
   const results = [];
   function test(name, fn) {
-    try {
-      const ok = !!fn();
-      results.push({ name, ok });
-    } catch (e) {
-      results.push({ name, ok: false, err: e?.message || String(e) });
-    }
+    try { results.push({ name, ok: !!fn() }); }
+    catch (e) { results.push({ name, ok: false }); }
   }
-
-  test(
-    "Release-Banner vorhanden",
-    () =>
-      typeof state.settings.releaseBanner === "string" &&
-      state.settings.releaseBanner.length > 5
-  );
-  test(
-    "Hero-Titel erwähnt Fitness-App",
-    () => /Fitness\-?App/i.test(state.settings.heroTitle)
-  );
-  test("Hero hat Bild-Konfiguration", () =>
-    ["inline", "url"].includes(state.settings.heroImageMode));
-  test(
-    "Beta-CTA Text gesetzt",
-    () =>
-      typeof state.settings.betaCta === "string" &&
-      /Teste|Beta/i.test(state.settings.betaCta)
-  );
+  test("Release-Banner vorhanden", () => typeof state.settings.releaseBanner === "string" && state.settings.releaseBanner.length > 5);
+  test("Hero hat Bild-Konfiguration", () => ["inline", "url"].includes(state.settings.heroImageMode));
   test("Mind. 3 Features vorhanden", () => state.features.length >= 3);
   test("FAQ nicht leer", () => state.faqs.length >= 1);
-  test("Blog-Post Beispiel vorhanden", () =>
-    state.posts.some((p) => p.published));
-  test("Slug-Schema korrekt", () =>
-    state.posts.every((p) =>
-      /^\d{4}-\d{2}-\d{2}-[a-z0-9\-]+$/.test(
-        normalizeSlug(p.slug, p.publishedAt)
-      )
-    ));
-  test("published -> publishedAt gesetzt", () =>
-    state.posts.every((p) => !p.published || !!p.publishedAt));
-  test("Cover-URL plausibel (falls gesetzt)", () =>
-    state.posts.every((p) => !p.coverImage || isPlausibleUrl(p.coverImage)));
-  test("Signup persistiert & wird zurückgerollt", () => {
-    const before = loadLS(LS_KEYS.signups, []);
-    const temp = {
-      id: uid(),
-      email: "test@example.com",
-      goal: "Hypertrophie",
-      experience: "Einsteiger",
-      createdAt: new Date().toISOString(),
-    };
-    const next = [...before, temp];
-    saveLS(LS_KEYS.signups, next);
-    const after = loadLS(LS_KEYS.signups, []);
-    const ok =
-      after.length === before.length + 1 &&
-      after[after.length - 1].email === "test@example.com";
-    saveLS(LS_KEYS.signups, before);
-    return ok;
-  });
-  test(
-    "Admin Default-Passwort greift",
-    () => (loadLS(LS_KEYS.adminPw, null) || "milo-admin") === "milo-admin"
-  );
-
   return results;
 }
-
-function DebugPage({ settings, features, faqs, posts }) {
-  const tests = runTests({ settings, features, faqs, posts });
+function DebugPage({ settings, features, faqs }) {
+  const tests = runTests({ settings, features, faqs });
   return (
     <Section title="Debug & Tests" subtitle="Schnelle Checks für Inhalte & Flows.">
       <Card>
         <div className="space-y-2">
           {tests.map((t, i) => (
-            <div
-              key={i}
-              className={`flex items-center justify-between text-sm ${
-                t.ok ? "text-emerald-300" : "text-red-300"
-              }`}
-            >
+            <div key={i} className={`flex items-center justify-between text-sm ${t.ok ? "text-emerald-300" : "text-red-300"}`}>
               <span>{t.name}</span>
-              <span>
-                {t.ok ? "PASS" : "FAIL"}
-                {t.err ? ` – ${t.err}` : ""}
-              </span>
+              <span>{t.ok ? "PASS" : "FAIL"}</span>
             </div>
           ))}
         </div>
@@ -1564,7 +477,192 @@ function DebugPage({ settings, features, faqs, posts }) {
   );
 }
 
-/* ---------- Shell ---------- */
+/* ---------- Admin: Supabase CRUD (Posts + Upload) ---------- */
+function AdminPage() {
+  const { session, loading, signInWithPassword } = useAuth();
+
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+
+  const [posts, setPosts] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("cms_posts")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) return alert(error.message);
+      setPosts(data || []);
+    })();
+  }, [session]);
+
+  async function createPost() {
+    const draft = {
+      slug: `draft-${Date.now()}`,
+      title: "Neuer Artikel",
+      excerpt: "",
+      content_html: "<p></p>", // RichText folgt
+      cover_url: "",
+      tags: [],
+      author: "",
+      published: false,
+      published_at: null,
+    };
+    const { data, error } = await supabase.from("cms_posts").insert(draft).select().single();
+    if (error) return alert(error.message);
+    setPosts([data, ...posts]); setEditing(data);
+  }
+
+  async function savePost(p) {
+    setSaving(true);
+    try {
+      const patch = {
+        title: p.title,
+        slug: p.slug,
+        excerpt: p.excerpt,
+        content_html: p.content_html || "<p></p>",
+        cover_url: p.cover_url,
+        tags: p.tags,
+        author: p.author,
+        published: p.published,
+        published_at: p.published ? (p.published_at || new Date().toISOString()) : p.published_at,
+      };
+      const { data, error } = await supabase.from("cms_posts").update(patch).eq("id", p.id).select().single();
+      if (error) throw error;
+      setPosts(posts.map(x => x.id === p.id ? data : x));
+      setEditing(data);
+      alert("Gespeichert.");
+    } catch (e) {
+      alert(e.message);
+    } finally { setSaving(false); }
+  }
+
+  async function removePost(id) {
+    if (!confirm("Diesen Post wirklich löschen?")) return;
+    const { error } = await supabase.from("cms_posts").delete().eq("id", id);
+    if (error) return alert(error.message);
+    setPosts(posts.filter(p => p.id !== id));
+    if (editing?.id === id) setEditing(null);
+  }
+
+  async function uploadImage(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const path = `posts/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("cms_images").upload(path, file, { upsert: false });
+      if (error) throw error;
+      const { data: publicUrl } = supabase.storage.from("cms_images").getPublicUrl(path);
+      setEditing({ ...editing, cover_url: publicUrl.publicUrl });
+    } catch (e) { alert(e.message); } finally { setUploading(false); }
+  }
+
+  if (loading) {
+    return (
+      <Section title="Admin">
+        <p className="text-white/70">Lade…</p>
+      </Section>
+    );
+  }
+
+  if (!session) {
+    return (
+      <Section title="Admin Login" subtitle="E-Mail und Passwort eingeben">
+        <div className="max-w-sm space-y-3">
+          <Input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
+          <Input type="password" placeholder="Passwort" value={pw} onChange={e=>setPw(e.target.value)} />
+          <Button onClick={async () => { try { await signInWithPassword(email, pw); } catch(e){ alert(e.message); } }}>
+            Einloggen
+          </Button>
+          <p className="text-white/50 text-xs">
+            Hinweis: Für Magic-Link-Login brauchst du SMTP – später optional.
+          </p>
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Admin" subtitle="Beiträge verwalten (Supabase)">
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-white font-medium">Beiträge</h3>
+            <Button onClick={createPost}>+ Neuer Post</Button>
+          </div>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
+            {posts.map(p => (
+              <div key={p.id} className="flex items-center justify-between gap-2">
+                <button className="text-left text-white/80 hover:text-white" onClick={() => setEditing(p)}>
+                  {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/40 text-xs">{p.slug}</span>
+                  <Button variant="ghost" onClick={() => removePost(p.id)}>Löschen</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          {!editing ? (
+            <p className="text-white/60 text-sm">Post auswählen oder erstellen.</p>
+          ) : (
+            <div className="space-y-2">
+              <Input value={editing.title} onChange={e=>setEditing({ ...editing, title: e.target.value })} placeholder="Titel" />
+              <Input value={editing.slug} onChange={e=>setEditing({ ...editing, slug: e.target.value })} placeholder="slug" />
+              <Textarea rows={2} value={editing.excerpt || ""} onChange={e=>setEditing({ ...editing, excerpt: e.target.value })} placeholder="Kurzbeschreibung" />
+
+              <div>
+                <label className="text-white/70 text-sm">Cover Bild</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input value={editing.cover_url || ""} onChange={e=>setEditing({ ...editing, cover_url: e.target.value })} placeholder="https://..." />
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
+                    Upload
+                    <input type="file" className="hidden" accept="image/*" onChange={e=>uploadImage(e.target.files?.[0])} />
+                  </label>
+                </div>
+                {uploading && <p className="text-white/50 text-xs mt-1">Upload…</p>}
+                {editing.cover_url && <img src={editing.cover_url} alt="cover" className="mt-2 rounded border border-white/10" />}
+              </div>
+
+              <div>
+                <label className="text-white/70 text-sm">Inhalt (HTML – Rich Text folgt)</label>
+                <Textarea
+                  rows={10}
+                  value={editing.content_html || ""}
+                  onChange={e=>setEditing({ ...editing, content_html: e.target.value })}
+                  placeholder="<p>Dein HTML-Inhalt hier. (Tiptap folgt im nächsten Schritt)</p>"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-white/80 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!!editing.published}
+                    onChange={e=>setEditing({ ...editing, published: e.target.checked })}
+                  />
+                  Veröffentlicht
+                </label>
+                <Button onClick={() => savePost(editing)}>{saving ? "Speichern…" : "Speichern"}</Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+    </Section>
+  );
+}
+
+/* ---------- Shell / Navigation ---------- */
+const PAGES = ["Home", "Features", "How", "Blog", "FAQ", "Kontakt", "Recht", "Admin", "Debug"];
 function Shell({ settings, onNavigate, active }) {
   return (
     <header className="sticky top-0 z-20 backdrop-blur border-b border-white/10 bg-black/40">
@@ -1573,9 +671,7 @@ function Shell({ settings, onNavigate, active }) {
           <div className="flex items-center gap-2">
             <div
               className="h-8 w-8 rounded-xl"
-              style={{
-                background: `linear-gradient(135deg, ${settings.accent}, #22c55e)`,
-              }}
+              style={{ background: `linear-gradient(135deg, ${settings.accent}, #22c55e)` }}
               aria-hidden
             />
             <span className="text-white font-semibold">{settings.brand}</span>
@@ -1601,87 +697,75 @@ function Shell({ settings, onNavigate, active }) {
   );
 }
 
-/* ---------- App Root ---------- */
+/* ---------- Root App ---------- */
 export default function App() {
-  const { page, navigate } = usePage();
-  const [settings, setSettings] = useState(() =>
-    loadLS(LS_KEYS.settings, DEFAULT_SETTINGS)
-  );
-  const [features, setFeatures] = useState(() =>
-    loadLS(LS_KEYS.features, DEFAULT_FEATURES)
-  );
-  const [faqs, setFaqs] = useState(() => loadLS(LS_KEYS.faqs, DEFAULT_FAQS));
-  const [posts, setPosts] = useState(() => loadLS(LS_KEYS.posts, DEFAULT_POSTS));
+  const [settings] = useState(DEFAULT_SETTINGS);
+  const [features] = useState(DEFAULT_FEATURES);
+  const [faqs] = useState(DEFAULT_FAQS);
 
-  useEffect(() => saveLS(LS_KEYS.settings, settings), [settings]);
-  useEffect(() => saveLS(LS_KEYS.features, features), [features]);
-  useEffect(() => saveLS(LS_KEYS.faqs, faqs), [faqs]);
-  useEffect(() => saveLS(LS_KEYS.posts, posts), [posts]);
+  const [page, setPage] = useState("Home");
+
+  // Veröffentliche Posts aus Supabase lesen (Public)
+  const [publishedPosts, setPublishedPosts] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("cms_posts")
+          .select("id, slug, title, excerpt, cover_url, content_html, published_at")
+          .eq("published", true)
+          .order("published_at", { ascending: false });
+        if (error) throw error;
+        setPublishedPosts(data || []);
+      } catch {
+        // Fallback: keine Posts
+        setPublishedPosts([]);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     document.documentElement.className = "bg-black";
-    try {
-      document.body.style.margin = "0";
-      document.body.style.background = "#000";
-    } catch {}
+    try { document.body.style.margin = "0"; document.body.style.background = "#000"; } catch {}
   }, []);
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Shell settings={settings} onNavigate={navigate} active={page} />
+    <AuthProvider>
+      <div className="min-h-screen bg-black text-white">
+        <Shell settings={settings} onNavigate={setPage} active={page} />
 
-      {page === "Home" && (
-        <HomePage
-          settings={settings}
-          features={features}
-          faqs={faqs}
-          posts={posts}
-        />
-      )}
-      {page === "Features" && <FeaturesPage features={features} />}
-      {page === "How" && <HowPage />}
-      {page === "Blog" && <BlogPage posts={posts} />}
-      {page === "FAQ" && <FAQPage faqs={faqs} />}
-      {page === "Kontakt" && <KontaktPage />}
-      {page === "Recht" && <LegalPage />}
-      {page === "Admin" && (
-        <AdminPage
-          settings={settings}
-          setSettings={setSettings}
-          features={features}
-          setFeatures={setFeatures}
-          faqs={faqs}
-          setFaqs={setFaqs}
-          posts={posts}
-          setPosts={setPosts}
-        />
-      )}
-      {page === "Debug" && (
-        <DebugPage
-          settings={settings}
-          features={features}
-          faqs={faqs}
-          posts={posts}
-        />
-      )}
+        {page === "Home" && (
+          <HomePage
+            settings={settings}
+            features={features}
+            faqs={faqs}
+            publishedPosts={publishedPosts}
+          />
+        )}
+        {page === "Features" && <FeaturesPage features={features} />}
+        {page === "How" && <HowPage />}
+        {page === "Blog" && <BlogPage publishedPosts={publishedPosts} />}
+        {page === "FAQ" && <FAQPage faqs={faqs} />}
+        {page === "Kontakt" && <KontaktPage />}
+        {page === "Recht" && <LegalPage />}
+        {page === "Admin" && <AdminPage />}
+        {page === "Debug" && <DebugPage settings={settings} features={features} faqs={faqs} />}
 
-      <footer className="border-t border-white/10 mt-10">
-        <Container>
-          <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-white/50 text-sm">
-            <div>© {new Date().getFullYear()} {settings.brand}</div>
-            <div className="flex items-center gap-3">
-              <a className="hover:text-white" onClick={() => (location.hash = "Recht")}>
-                Impressum & Datenschutz
-              </a>
-              <span>•</span>
-              <a className="hover:text-white" onClick={() => (location.hash = "Admin")}>
-                Admin
-              </a>
-              <span>•</span>
-              <span>Ab Oktober 2025</span>
+        <footer className="border-t border-white/10 mt-10">
+          <Container>
+            <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-white/50 text-sm">
+              <div>© {new Date().getFullYear()} {settings.brand}</div>
+              <div className="flex items-center gap-3">
+                <a className="hover:text-white" onClick={() => setPage("Recht")}>Impressum & Datenschutz</a>
+                <span>•</span>
+                <a className="hover:text-white" onClick={() => setPage("Admin")}>Admin</a>
+                <span>•</span>
+                <span>Ab Oktober 2025</span>
+              </div>
             </div>
-          </div>
-        </Container>
-      </footer>
-    </div>
+          </Container>
+        </footer>
+      </div>
+    </AuthProvider>
   );
 }
