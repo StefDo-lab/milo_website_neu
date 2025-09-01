@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 
 /* ------------------------------------------------------------
-   Coach Milo – Vollständige Single-File React App (Canvas)
-   Stufe 1B: Markdown-Export (.md) + Write-Fallback (neues Tab)
-   + Clipboard-Buttons (Fallback gegen iFrame-Download-Blocker)
+   Coach Milo – Vollständige Single-File React App
+   - Markdown-Export (.md) + Write-Fallback (neues Tab)
+   - Clipboard-Buttons (Fallback gegen iFrame-Download-Blocker)
+   - .md-Loader: Blogposts aus Dateien unter /public/content/posts/
+   - UI-Fixes: lesbare Tabs, konsistente Breite, schwarzer Hintergrund
 ------------------------------------------------------------ */
 
 /* ---------- LocalStorage Keys & Utils ---------- */
@@ -79,13 +81,11 @@ async function copyToClipboard(text) {
   }
 }
 
-// Write-Fallback: Öffnet about:blank, schreibt HTML + Download-Button + Copy-Button + <pre>
+// Write-Fallback: Öffnet about:blank mit Download-/Copy-Buttons + <pre>
 function tryDownloadOrOpen(filename, text, type = "text/plain") {
-  // 1) Regulären Download versuchen
   try {
     download(filename, text, type);
   } catch {}
-  // 2) Fallback für Canvas/iframes: neues Tab mit Inhalt generieren
   if (isInIframe()) {
     const w = window.open("", "_blank");
     const b64 = (() => {
@@ -111,11 +111,7 @@ function tryDownloadOrOpen(filename, text, type = "text/plain") {
   const b64 = ${JSON.stringify(b64)};
   const dec=(b64)=>{try{return decodeURIComponent(escape(atob(b64)));}catch(e){return atob(b64)}};
   const text=dec(b64);
-
-  // Inhalt sicherstellen
   const pre=document.getElementById('content'); if(pre && !pre.textContent) pre.textContent=text;
-
-  // Robuster Download auf echten Klick
   document.getElementById('dlbtn').addEventListener('click', function(){
     try {
       const blob=new Blob([text],{type:type||'text/markdown'});
@@ -126,11 +122,9 @@ function tryDownloadOrOpen(filename, text, type = "text/plain") {
       a.click();
       setTimeout(function(){ (window.URL||window.webkitURL).revokeObjectURL(url); a.remove(); }, 1000);
     } catch(e) {
-      alert('Download konnte nicht gestartet werden: '+e.message+'\nDu kannst den Inhalt unten auch mit Cmd/Ctrl+S speichern oder den Button "Inhalt kopieren" nutzen.');
+      alert('Download konnte nicht gestartet werden: '+e.message+'\\nDu kannst den Inhalt unten auch mit Cmd/Ctrl+S speichern oder den Button \"Inhalt kopieren\" nutzen.');
     }
   }, { once:false });
-
-  // Copy-Button Handler
   document.getElementById('cpbtn').addEventListener('click', function(){
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -143,14 +137,13 @@ function tryDownloadOrOpen(filename, text, type = "text/plain") {
   }, { once:false });
 })();
 </script>`;
-
     if (w && w.document) {
       w.document.open();
       w.document.write(html);
       w.document.close();
     } else {
-      // Letzter Fallback: data:URL öffnen
-      const dataUrl = "data:text/html;charset=utf-8," + encodeURIComponent(html);
+      const dataUrl =
+        "data:text/html;charset=utf-8," + encodeURIComponent(html);
       const tmp = document.createElement("a");
       tmp.href = dataUrl;
       tmp.target = "_blank";
@@ -363,7 +356,7 @@ function usePage() {
 
 /* ---------- UI Components ---------- */
 const Container = ({ children }) => (
-  <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8">{children}</div>
+  <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
 );
 
 const Badge = ({ children }) => (
@@ -395,28 +388,26 @@ const Card = ({ children }) => (
 const Button = ({
   children,
   onClick,
-  type = "button",
   variant = "primary",
+  type = "button",
   className = "",
 }) => {
   const base =
-    "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition";
+    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none " +
+    "focus:ring-2 focus:ring-emerald-400 bg-transparent"; // ← verhindert „weiße Pillen“
+
   const styles =
     variant === "primary"
-      ? "bg-emerald-500/90 hover:bg-emerald-400 text-black"
-      : variant === "ghost"
-      ? "hover:bg-white/10 text-white"
-      : "bg-white/10 hover:bg-white/20 text-white";
+      ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
+      : "text-white border border-white/20 hover:bg-white/10";
+
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={`${base} ${styles} ${className}`}
-    >
+    <button type={type} onClick={onClick} className={`${base} ${styles} ${className}`}>
       {children}
     </button>
   );
 };
+
 
 const Input = (props) => (
   <input
@@ -595,13 +586,117 @@ function renderMarkdown(md) {
     .replace(/\*(.+?)\*/g, "$1");
 }
 
+/* ---------- .md Loader (Frontmatter + Body) ---------- */
+function parseFrontmatter(md) {
+  const m = md.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!m) return { fm: {}, body: md };
+  const raw = m[1];
+  const body = m[2];
+  const fm = {};
+  raw.split(/\r?\n/).forEach((line) => {
+    if (!line.trim()) return;
+    const idx = line.indexOf(":");
+    if (idx === -1) return;
+    const key = line.slice(0, idx).trim();
+    let val = line.slice(idx + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (/^\[.*\]$/.test(val)) {
+      val = val
+        .slice(1, -1)
+        .split(",")
+        .map((s) => s.trim().replace(/^"|"$/g, ""))
+        .filter(Boolean);
+    } else if (val === "true" || val === "false") {
+      val = val === "true";
+    }
+    fm[key] = val;
+  });
+  return { fm, body };
+}
+
+async function loadPostMd(slug) {
+  const url = `/content/posts/${slug}.md?v=${Date.now()}`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("not ok");
+    const text = await res.text();
+    const { fm, body } = parseFrontmatter(text);
+    return { fm, body };
+  } catch {
+    return null; // Datei (noch) nicht vorhanden
+  }
+}
+
+function mergePostWithMd(base, md) {
+  if (!md) return base;
+  const fm = md.fm || {};
+  return {
+    ...base,
+    title: fm.title || base.title,
+    excerpt: fm.excerpt || base.excerpt,
+    slug: fm.slug || base.slug,
+    published:
+      typeof fm.published === "boolean" ? fm.published : base.published,
+    publishedAt: fm.publishedAt || base.publishedAt,
+    tags: fm.tags || base.tags,
+    coverImage: fm.coverImage || base.coverImage,
+    author: fm.author || base.author,
+    bodyMd: md.body || base.bodyMd,
+  };
+}
+
+/* ---------- PostCard (lädt .md wenn vorhanden) ---------- */
+function PostCard({ post, compact = false }) {
+  const [data, setData] = useState(post);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const md = await loadPostMd(normalizeSlug(post.slug, post.publishedAt));
+      if (mounted) setData(mergePostWithMd(post, md));
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [post.id, post.slug, post.publishedAt]);
+
+  return (
+    <Card>
+      <h3 className="text-white font-medium">{data.title}</h3>
+      {data.coverImage && isPlausibleUrl(data.coverImage) && (
+        <img
+          src={data.coverImage}
+          alt="Cover"
+          className="mt-2 rounded-lg border border-white/10"
+        />
+      )}
+      {data.excerpt && (
+        <p className="text-white/60 text-sm mt-1">{data.excerpt}</p>
+      )}
+      {!compact && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-white/70 text-sm">
+            Lesen
+          </summary>
+          <article className="prose prose-invert mt-2 text-white/80 text-sm whitespace-pre-wrap">
+            {renderMarkdown(data.bodyMd)}
+          </article>
+        </details>
+      )}
+    </Card>
+  );
+}
+
 /* ---------- Pages ---------- */
 function HomePage({ settings, features, faqs, posts }) {
   const latestPosts = (posts || [])
     .filter((p) => p.published)
     .sort(
-      (a, b) =>
-        new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)
+      (a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)
     )
     .slice(0, 2);
 
@@ -723,7 +818,7 @@ function HomePage({ settings, features, faqs, posts }) {
         </div>
       </Section>
 
-      {/* Letzte zwei Blogartikel */}
+      {/* Neu im Blog */}
       <Section title="Neu im Blog">
         <div className="space-y-4">
           {latestPosts.length === 0 && (
@@ -732,25 +827,7 @@ function HomePage({ settings, features, faqs, posts }) {
             </p>
           )}
           {latestPosts.map((p) => (
-            <Card key={p.id}>
-              <h3 className="text-white font-medium">{p.title}</h3>
-              {p.coverImage && isPlausibleUrl(p.coverImage) && (
-                <img
-                  src={p.coverImage}
-                  alt="Cover"
-                  className="mt-2 rounded-lg border border-white/10"
-                />
-              )}
-              <p className="text-white/60 text-sm mt-1">{p.excerpt}</p>
-              <details className="mt-3">
-                <summary className="cursor-pointer text-white/70 text-sm">
-                  Lesen
-                </summary>
-                <article className="prose prose-invert mt-2 text-white/80 text-sm whitespace-pre-wrap">
-                  {renderMarkdown(p.bodyMd)}
-                </article>
-              </details>
-            </Card>
+            <PostCard key={p.id} post={p} compact />
           ))}
         </div>
       </Section>
@@ -760,10 +837,7 @@ function HomePage({ settings, features, faqs, posts }) {
 
 function FeaturesPage({ features }) {
   return (
-    <Section
-      title="Features"
-      subtitle="Mehr als Tracking: Milo denkt mit."
-    >
+    <Section title="Features" subtitle="Mehr als Tracking: Milo denkt mit.">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {features.map((f) => (
           <Card key={f.id}>
@@ -803,25 +877,7 @@ function BlogPage({ posts }) {
     >
       <div className="space-y-4">
         {published.map((p) => (
-          <Card key={p.id}>
-            <h3 className="text-white font-medium">{p.title}</h3>
-            {p.coverImage && isPlausibleUrl(p.coverImage) && (
-              <img
-                src={p.coverImage}
-                alt="Cover"
-                className="mt-2 rounded-lg border border-white/10"
-              />
-            )}
-            <p className="text-white/60 text-sm mt-1">{p.excerpt}</p>
-            <details className="mt-3">
-              <summary className="cursor-pointer text-white/70 text-sm">
-                Lesen
-              </summary>
-              <article className="prose prose-invert mt-2 text-white/80 text-sm whitespace-pre-wrap">
-                {renderMarkdown(p.bodyMd)}
-              </article>
-            </details>
-          </Card>
+          <PostCard key={p.id} post={p} />
         ))}
       </div>
     </Section>
@@ -849,10 +905,7 @@ function FAQPage({ faqs }) {
 
 function KontaktPage() {
   return (
-    <Section
-      title="Kontakt"
-      subtitle="Fragen? Schreib uns – wir freuen uns."
-    >
+    <Section title="Kontakt" subtitle="Fragen? Schreib uns – wir freuen uns.">
       <div className="grid gap-3 md:grid-cols-2">
         <Card>
           <p className="text-white/80 text-sm">E-Mail: hello@coachmilo.app</p>
@@ -862,7 +915,9 @@ function KontaktPage() {
           </p>
         </Card>
         <Card>
-          <p className="text-white/80 text-sm">Geschäftlich/PR: press@coachmilo.app</p>
+          <p className="text-white/80 text-sm">
+            Geschäftlich/PR: press@coachmilo.app
+          </p>
           <p className="text-white/60 text-xs mt-2">
             Wir schicken dir gern unser Factsheet.
           </p>
@@ -1232,10 +1287,8 @@ function AdminPage({
             </div>
           </div>
           <p className="text-white/50 text-xs mb-2">
-            Hinweis: In eingebetteten Umgebungen (Canvas/iframe) kann der
-            automatische Download blockiert sein. In dem Fall öffnet sich ein
-            neuer Tab mit dem Markdown – dort mit Cmd/Ctrl+S speichern oder
-            „Inhalt kopieren“ nutzen.
+            Workflow ohne Backend: .md herunterladen und im Projekt unter
+            <code className="ml-1">public/content/posts/</code> ablegen (Ordner ggf. anlegen).
           </p>
           <div className="grid gap-3">
             {posts.map((p, idx) => (
@@ -1356,11 +1409,39 @@ function AdminPage({
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      const { content } = postToMarkdown(posts[idx]);
-                      copyToClipboard(content);
+                      const slug = normalizeSlug(
+                        posts[idx].slug,
+                        posts[idx].publishedAt
+                      );
+                      copyToClipboard(`content/posts/${slug}.md`);
+                      alert(
+                        "Pfad kopiert: content/posts/" +
+                          slug +
+                          ".md\nLege die Datei unter public/content/posts/ ab."
+                      );
                     }}
                   >
-                    .md in Zwischenablage
+                    Pfad kopieren
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      const slug = normalizeSlug(
+                        posts[idx].slug,
+                        posts[idx].publishedAt
+                      );
+                      const md = await loadPostMd(slug);
+                      if (md)
+                        alert(".md gefunden und geladen: " + slug + ".md");
+                      else
+                        alert(
+                          "Keine .md unter public/content/posts/" +
+                            slug +
+                            ".md gefunden."
+                        );
+                    }}
+                  >
+                    .md testen (live laden)
                   </Button>
                   <Button
                     variant="ghost"
@@ -1413,7 +1494,9 @@ function runTests(state) {
     ["inline", "url"].includes(state.settings.heroImageMode));
   test(
     "Beta-CTA Text gesetzt",
-    () => typeof state.settings.betaCta === "string" && /Teste|Beta/i.test(state.settings.betaCta)
+    () =>
+      typeof state.settings.betaCta === "string" &&
+      /Teste|Beta/i.test(state.settings.betaCta)
   );
   test("Mind. 3 Features vorhanden", () => state.features.length >= 3);
   test("FAQ nicht leer", () => state.faqs.length >= 1);
@@ -1421,7 +1504,9 @@ function runTests(state) {
     state.posts.some((p) => p.published));
   test("Slug-Schema korrekt", () =>
     state.posts.every((p) =>
-      /^\d{4}-\d{2}-\d{2}-[a-z0-9\-]+$/.test(normalizeSlug(p.slug, p.publishedAt))
+      /^\d{4}-\d{2}-\d{2}-[a-z0-9\-]+$/.test(
+        normalizeSlug(p.slug, p.publishedAt)
+      )
     ));
   test("published -> publishedAt gesetzt", () =>
     state.posts.every((p) => !p.published || !!p.publishedAt));
@@ -1500,8 +1585,10 @@ function Shell({ settings, onNavigate, active }) {
               <button
                 key={p}
                 onClick={() => onNavigate(p)}
-                className={`px-3 py-1.5 rounded-lg text-sm ${
-                  active === p ? "bg-white/10 text-white" : "text-white/70 hover:text-white"
+                className={`px-3 py-1.5 rounded-lg text-sm transition border ${
+                  active === p
+                    ? "bg-white/10 text-white border-white/20"
+                    : "bg-transparent text-white/80 hover:text-white border-white/20"
                 }`}
               >
                 {p}
@@ -1532,6 +1619,10 @@ export default function App() {
   useEffect(() => saveLS(LS_KEYS.posts, posts), [posts]);
   useEffect(() => {
     document.documentElement.className = "bg-black";
+    try {
+      document.body.style.margin = "0";
+      document.body.style.background = "#000";
+    } catch {}
   }, []);
 
   return (
@@ -1594,4 +1685,3 @@ export default function App() {
     </div>
   );
 }
-
