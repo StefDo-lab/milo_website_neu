@@ -47,12 +47,26 @@ const Card = ({ children }) => (
   </div>
 );
 const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
-  const base = "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2 focus:ring-emerald-400 bg-transparent";
-  const st = variant === "primary"
-    ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
-    : "text-white border border-white/20 hover:bg-white/10";
-  return <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>{children}</button>;
+  const base =
+    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2 focus:ring-emerald-400";
+  const st =
+    variant === "primary"
+      ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
+      : variant === "ghost"
+      ? "bg-transparent text-white/70 hover:text-white"
+      : "text-white border border-white/20 hover:bg-white/10";
+
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      className={`${base} ${st} ${className}`}
+    >
+      {children}
+    </button>
+  );
 };
+
 const Input=(p)=>(<input {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
 const Select=(p)=>(<select {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
 const Textarea=(p)=>(<textarea {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
@@ -629,7 +643,7 @@ function AdminPage() {
         <Card>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-white font-medium">Beiträge</h3>
-            <Button onClick={createPost}>+ Neuer Post</Button>
+            <Button variant="primary" onClick={createPost}>+ Neuer Post</Button>
           </div>
           <div className="space-y-2 max-h-[60vh] overflow-auto">
             {posts.map(p => (
