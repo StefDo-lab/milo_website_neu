@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/auth";
+import PostPage from "./PostPage";
 
 /* ------------------------------------------------------------
-   Coach Milo – Vollständige App.jsx
-   - Öffentliche Seiten wie in deiner großen Version (Hero, Warum, Schritte, Features, FAQ, Blog, Kontakt, Recht, Debug)
+   Coach Milo – Vollständige App.jsx (mit Blog-Detailseite)
+   - Öffentliche Seiten (Hero, Warum, Schritte, Features, FAQ, Blog, Kontakt, Recht, Debug)
    - Admin: Supabase (Login E-Mail+Passwort), CRUD für cms_posts, Bild-Upload in cms_images
-   - Beta-Signups: schreiben in cms_signups (statt LocalStorage)
+   - Beta-Signups: schreiben in cms_signups
 ------------------------------------------------------------ */
 
 /* ---------- Utils ---------- */
@@ -210,26 +211,52 @@ function renderMarkdown(md) {
 }
 
 /* ---------- Public: Blog Post Karte (aus Supabase) ---------- */
-function PostCard({ post, compact=false }) {
+function PostCard({ post, compact=false, onOpen }) {
+  const Wrapper = ({ children }) =>
+    onOpen ? (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpen(post.slug)}
+        onKeyDown={(e) => (e.key === "Enter" ? onOpen(post.slug) : null)}
+        className="w-full text-left hover:opacity-90 transition cursor-pointer select-none"
+        aria-label={`Öffne Artikel: ${post.title}`}
+      >
+        {children}
+      </div>
+    ) : (
+      <>{children}</>
+    );
+
   return (
     <Card>
-      <h3 className="text-white font-medium">{post.title}</h3>
-      {post.cover_url && isPlausibleUrl(post.cover_url) && (
-        <img src={post.cover_url} alt="Cover" className="mt-2 rounded border border-white/10" />
-      )}
-      {post.excerpt && <p className="text-white/60 text-sm mt-1">{post.excerpt}</p>}
-      {!compact && post.content_html && (
-        <article
-          className="prose prose-invert mt-3 text-white/80"
-          dangerouslySetInnerHTML={{ __html: post.content_html }}
-        />
-      )}
+      <Wrapper>
+        <h3 className="text-white font-medium">{post.title}</h3>
+        {post.cover_url && isPlausibleUrl(post.cover_url) && (
+          <img src={post.cover_url} alt="Cover" className="mt-2 rounded border border-white/10" />
+        )}
+        {post.excerpt && <p className="text-white/60 text-sm mt-1">{post.excerpt}</p>}
+        {!compact && post.content_html && (
+          <article
+            className="prose prose-invert mt-3 text-white/80"
+            dangerouslySetInnerHTML={{ __html: post.content_html }}
+          />
+        )}
+        {onOpen && (
+          <div className="mt-3">
+            <span className="inline-flex items-center gap-1 text-emerald-300 text-sm">
+              Weiterlesen →
+            </span>
+          </div>
+        )}
+      </Wrapper>
     </Card>
   );
 }
 
+
 /* ---------- Seiten ---------- */
-function HomePage({ settings, features, faqs, publishedPosts }) {
+function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
   const latest = (publishedPosts || []).slice(0, 2);
 
   return (
@@ -342,7 +369,10 @@ function HomePage({ settings, features, faqs, publishedPosts }) {
           {latest.length === 0 && (
             <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
           )}
-          {latest.map((p) => <PostCard key={p.id} post={p} compact />)}
+          {latest.map((p) => (
+  <PostCard key={p.id} post={p} compact onOpen={onOpenPost} />
+))}
+
         </div>
       </Section>
     </>
@@ -379,15 +409,21 @@ function HowPage() {
   );
 }
 
-function BlogPage({ publishedPosts }) {
+function BlogPage({ publishedPosts, onOpen }) {
   return (
     <Section title="Blog & Updates" subtitle="Transparente Roadmap, Einblicke, Learnings.">
       <div className="space-y-4">
-        {(publishedPosts || []).map((p) => <PostCard key={p.id} post={p} />)}
+        {(publishedPosts || []).length === 0 && (
+          <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
+        )}
+        {(publishedPosts || []).map((p) => (
+          <PostCard key={p.id} post={p} compact onOpen={onOpen} />
+        ))}
       </div>
     </Section>
   );
 }
+
 
 function FAQPage({ faqs }) {
   return (
@@ -598,9 +634,16 @@ function AdminPage() {
           <div className="space-y-2 max-h-[60vh] overflow-auto">
             {posts.map(p => (
               <div key={p.id} className="flex items-center justify-between gap-2">
-                <button className="text-left text-white/80 hover:text-white" onClick={() => setEditing(p)}>
-                  {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
-                </button>
+                <div
+  role="button"
+  tabIndex={0}
+  onClick={() => setEditing(p)}
+  onKeyDown={(e)=> e.key==="Enter" ? setEditing(p) : null}
+  className="text-left text-white/80 hover:text-white cursor-pointer select-none"
+>
+  {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
+</div>
+
                 <div className="flex items-center gap-2">
                   <span className="text-white/40 text-xs">{p.slug}</span>
                   <Button variant="ghost" onClick={() => removePost(p.id)}>Löschen</Button>
@@ -704,6 +747,7 @@ export default function App() {
   const [faqs] = useState(DEFAULT_FAQS);
 
   const [page, setPage] = useState("Home");
+  const [selectedSlug, setSelectedSlug] = useState(null);
 
   // Veröffentliche Posts aus Supabase lesen (Public)
   const [publishedPosts, setPublishedPosts] = useState([]);
@@ -735,16 +779,29 @@ export default function App() {
         <Shell settings={settings} onNavigate={setPage} active={page} />
 
         {page === "Home" && (
-          <HomePage
-            settings={settings}
-            features={features}
-            faqs={faqs}
-            publishedPosts={publishedPosts}
-          />
-        )}
+  <HomePage
+    settings={settings}
+    features={features}
+    faqs={faqs}
+    publishedPosts={publishedPosts}
+    onOpenPost={(slug) => { setSelectedSlug(slug); setPage("Post"); }}
+  />
+)}
+
         {page === "Features" && <FeaturesPage features={features} />}
         {page === "How" && <HowPage />}
-        {page === "Blog" && <BlogPage publishedPosts={publishedPosts} />}
+        {page === "Blog" && (
+          <BlogPage
+            publishedPosts={publishedPosts}
+            onOpen={(slug) => { setSelectedSlug(slug); setPage("Post"); }}
+          />
+        )}
+        {page === "Post" && (
+          <PostPage
+            slug={selectedSlug}
+            onBack={() => setPage("Blog")}
+          />
+        )}
         {page === "FAQ" && <FAQPage faqs={faqs} />}
         {page === "Kontakt" && <KontaktPage />}
         {page === "Recht" && <LegalPage />}
