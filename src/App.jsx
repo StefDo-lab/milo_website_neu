@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/auth";
 import PostPage from "./PostPage";
+import RichTextEditor from "./RichTextEditor";
 
 /* ------------------------------------------------------------
    Coach Milo – Vollständige App.jsx (mit Blog-Detailseite)
@@ -690,14 +691,16 @@ function AdminPage() {
               </div>
 
               <div>
-                <label className="text-white/70 text-sm">Inhalt (HTML – Rich Text folgt)</label>
-                <Textarea
-                  rows={10}
-                  value={editing.content_html || ""}
-                  onChange={e=>setEditing({ ...editing, content_html: e.target.value })}
-                  placeholder="<p>Dein HTML-Inhalt hier. (Tiptap folgt im nächsten Schritt)</p>"
-                />
-              </div>
+  <label className="text-white/70 text-sm">Inhalt</label>
+  <RichTextEditor
+    value={editing.content_html || ""}
+    onChange={(html) => setEditing({ ...editing, content_html: html })}
+  />
+  <p className="text-white/40 text-xs mt-1">
+    Tipp: Mit H2/H3 strukturieren, Link/Bild über Toolbar. Änderungen werden beim Speichern übernommen.
+  </p>
+</div>
+
 
               <div className="flex items-center gap-3">
                 <label className="inline-flex items-center gap-2 text-white/80 text-sm">
