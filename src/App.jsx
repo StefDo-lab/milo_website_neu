@@ -3,25 +3,15 @@ import { supabase } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/auth";
 import PostPage from "./PostPage";
 
-/* ------------------------------------------------------------
-   Coach Milo – App.jsx (Original Layout preserved)
-   Change: Features & FAQs werden aus Supabase geladen (Fallback aktiv)
------------------------------------------------------------- */
+/* =============================================================
+   Coach Milo – App.jsx (vollständig)
+   - Public: Features & FAQs aus Supabase (Fallback aktiv)
+   - Admin: Tabs (Beiträge | Features | FAQ | Einstellungen)
+   - Einstellungen: Hero-Bild (inline/url) inkl. Upload in cms_images
+   - Bewahrt Dark/Orange-Style (Tailwind)
+============================================================= */
 
-/* ---------- Utils ---------- */
-function uid() {
-  try {
-    return crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
-  } catch {
-    return `id-${Math.random().toString(36).slice(2)}`;
-  }
-}
-function isPlausibleUrl(u) { try { return !!new URL(u).host; } catch { return false; } }
-function escapeHtml(s = "") {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
-}
-
-/* ---------- Layout / UI ---------- */
+/* ---------- UI/Infrastructure ---------- */
 const Container = ({ children }) => (
   <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
 );
@@ -33,7 +23,9 @@ const Badge = ({ children }) => (
 const Section = ({ title, subtitle, children }) => (
   <section className="py-12 md:py-16">
     <Container>
-      {title && <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">{title}</h2>}
+      {title && (
+        <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">{title}</h2>
+      )}
       {subtitle && <p className="text-white/70 mb-6 max-w-3xl">{subtitle}</p>}
       {children}
     </Container>
@@ -44,9 +36,7 @@ const Card = ({ children }) => (
     {children}
   </div>
 );
-
-/* Buttons: Orange-Brand, ohne native „Pillen“ */
-const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
+const Button = ({ children, onClick, variant = "primary", type = "button", className = "" }) => {
   const base =
     "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none [-webkit-appearance:none] focus:ring-2";
   const st =
@@ -55,39 +45,85 @@ const Button = ({ children, onClick, variant="primary", type="button", className
       : variant === "ghost"
       ? "bg-transparent text-white/70 hover:text-white"
       : "text-white border border-white/20 hover:bg-white/10";
-  return <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>{children}</button>;
+  return (
+    <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>
+      {children}
+    </button>
+  );
 };
+const Input = (p) => (
+  <input
+    {...p}
+    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${
+      p.className || ""
+    }`}
+  />
+);
+const Select = (p) => (
+  <select
+    {...p}
+    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-brand ${
+      p.className || ""
+    }`}
+  />
+);
+const Textarea = (p) => (
+  <textarea
+    {...p}
+    className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${
+      p.className || ""
+    }`}
+  />
+);
 
-/* Inputs: Fokus-Ring in Brand-Orange */
-const Input=(p)=>(<input {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
-const Select=(p)=>(<select {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
-const Textarea=(p)=>(<textarea {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
-
-/* ---------- Content Defaults ---------- */
+/* ---------- Defaults ---------- */
 const DEFAULT_SETTINGS = {
   brand: "Coach Milo",
   heroTitle: "Die Fitness-App mit deinem persönlichen KI-Coach",
-  heroSubtitle: "Individuelle Trainingspläne, die deine Situation, dein Niveau und deine Fortschritte berücksichtigen.",
+  heroSubtitle:
+    "Individuelle Trainingspläne, die deine Situation, dein Niveau und deine Fortschritte berücksichtigen.",
   releaseBanner: "Ab Oktober 2025 im App Store & Play Store",
   betaCta: "Teste Coach Milo schon vor dem Release",
-  accent: "#ff9a3e",                 // ORANGE
-  heroImageMode: "inline",           // "inline" | "url"
-  heroImageUrl: "/hero-image.png",
+  accent: "#ff9a3e",
+  heroImageMode: "inline", // 'inline' | 'url'
+  heroImageUrl: "", // gesetzt wenn 'url'
 };
 const DEFAULT_FEATURES = [
-  { id: "f1", title: "Individuelle Trainingspläne", body: "Milo baut deinen Plan aus Zielen, Equipment und Zeit. Passt Sätze/Wdh. automatisch an.", icon: "💪" },
-  { id: "f2", title: "Fortschritts-Tracking", body: "Tracke Workouts schnell. Milo erkennt Plateaus und empfiehlt passende Methoden.", icon: "📈" },
-  { id: "f3", title: "Übungsbibliothek (GIFs)", body: "Saubere Ausführung dank visueller Beispiele. Alternativen für jedes Niveau.", icon: "🎞️" },
-  { id: "f4", title: "Feedback-Loops", body: "Nach jedem Training bekommst du kurzes, konstruktives Feedback – wie vom Coach.", icon: "🗣️" },
-  { id: "f5", title: "Sharing & Motivation", body: "Teile Highlights mit Freunden – für mehr Spaß und Motivation.", icon: "✨" },
+  {
+    id: "f1",
+    title: "Individuelle Trainingspläne",
+    body: "Milo baut deinen Plan aus Zielen, Equipment und Zeit. Passt Sätze/Wdh. automatisch an.",
+    icon: "💪",
+  },
+  {
+    id: "f2",
+    title: "Fortschritts-Tracking",
+    body: "Tracke Workouts schnell. Milo erkennt Plateaus und empfiehlt passende Methoden.",
+    icon: "📈",
+  },
+  {
+    id: "f3",
+    title: "Übungsbibliothek (GIFs)",
+    body: "Saubere Ausführung dank visueller Beispiele. Alternativen für jedes Niveau.",
+    icon: "🎞️",
+  },
 ];
 const DEFAULT_FAQS = [
-  { id: "q1", question: "Für wen ist Coach Milo geeignet?", answer: "Für Einsteiger bis Fortgeschrittene. Milo passt Volumen und Intensität an deine Erfahrung an." },
-  { id: "q2", question: "Brauche ich spezielles Equipment?", answer: "Nein. Du kannst im Studio, zu Hause oder unterwegs trainieren – Milo berücksichtigt dein Setup." },
-  { id: "q3", question: "Wie funktioniert die Beta?", answer: "Melde dich mit E-Mail an und erhalte frühzeitig Zugang. Feedback hilft uns, Milo zu schärfen." },
+  {
+    id: "q1",
+    question: "Für wen ist Coach Milo geeignet?",
+    answer:
+      "Für Einsteiger bis Fortgeschrittene. Milo passt Volumen und Intensität an deine Erfahrung an.",
+  },
+  {
+    id: "q2",
+    question: "Brauche ich spezielles Equipment?",
+    answer:
+      "Nein. Du kannst im Studio, zu Hause oder unterwegs trainieren – Milo berücksichtigt dein Setup.",
+  },
 ];
 
-/* ---------- Hero Image ---------- */
+/* ---------- Hero ---------- */
 function HeroImage({ settings }) {
   if (settings.heroImageMode === "url" && settings.heroImageUrl) {
     return (
@@ -98,13 +134,13 @@ function HeroImage({ settings }) {
       />
     );
   }
-  // Inline SVG mit Orange-Gradient
+  // Inline SVG Fallback
   return (
     <div className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10 overflow-hidden">
       <svg viewBox="0 0 1200 600" className="w-full h-auto" role="img" aria-label="Coach Milo Preview">
         <defs>
           <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor={settings.accent} />
+            <stop offset="0%" stopColor={DEFAULT_SETTINGS.accent} />
             <stop offset="100%" stopColor="#ff7a00" />
           </linearGradient>
         </defs>
@@ -134,7 +170,7 @@ function HeroImage({ settings }) {
   );
 }
 
-/* ---------- Beta Signup (Supabase) ---------- */
+/* ---------- Beta Signup (optional, unverändert nutzbar) ---------- */
 function BetaForm({ settings }) {
   const [email, setEmail] = useState("");
   const [goal, setGoal] = useState("Hypertrophie");
@@ -150,11 +186,9 @@ function BetaForm({ settings }) {
       return;
     }
     try {
-      const { error } = await supabase.from("cms_signups").insert({
-        email,
-        goal,
-        experience: exp,
-      });
+      const { error } = await supabase
+        .from("cms_signups")
+        .insert({ email, goal, experience: exp });
       if (error) throw error;
       setOk("Danke! Wir melden uns mit Beta-Details.");
       setEmail("");
@@ -205,43 +239,39 @@ function BetaForm({ settings }) {
   );
 }
 
-/* ---------- Markdown (minimal) ---------- */
-function renderMarkdown(md) {
-  if (!md) return "";
-  return md
-    .replace(/^###\s(.+)$/gm, "\n$1\n——————————")
-    .replace(/^##\s(.+)$/gm, "\n$1\n————————")
-    .replace(/^#\s(.+)$/gm, "\n$1\n———————")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1");
+/* ---------- Supabase Hooks (Public) ---------- */
+function useSettings(defaults) {
+  const [state, setState] = useState({
+    heroImageMode: defaults.heroImageMode ?? "inline",
+    heroImageUrl: defaults.heroImageUrl ?? "",
+  });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("cms_settings")
+        .select("hero_image_mode, hero_image_url")
+        .eq("id", 1)
+        .single();
+      if (!alive) return;
+      if (!error && data) {
+        setState({
+          heroImageMode: data.hero_image_mode ?? (defaults.heroImageMode || "inline"),
+          heroImageUrl: data.hero_image_url ?? (defaults.heroImageUrl || ""),
+        });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return {
+    ...DEFAULT_SETTINGS,
+    heroImageMode: state.heroImageMode,
+    heroImageUrl: state.heroImageUrl,
+  };
 }
 
-/* ---------- PostCard ---------- */
-function PostCard({ post, compact = false, onOpen }) {
-  return (
-    <Card>
-      <h3 className="text-white font-medium">{post.title}</h3>
-      {post.cover_url && isPlausibleUrl(post.cover_url) && (
-        <div className="mt-2 w-full rounded overflow-hidden border border-white/10 bg-black h-56 md:h-64 flex items-center justify-start">
-          <img src={post.cover_url} alt="Cover" className="h-full w-auto object-contain" loading="lazy" />
-        </div>
-      )}
-      {post.excerpt && (
-        <p className="text-white/60 text-sm mt-2">{post.excerpt}</p>
-      )}
-      {!compact && post.content_html && (
-        <article className="prose prose-invert mt-3 text-white/80" dangerouslySetInnerHTML={{ __html: post.content_html }} />
-      )}
-      {onOpen && (
-        <button type="button" onClick={() => onOpen(post.slug)} className="mt-3 inline-flex items-center gap-1 text-brand hover:opacity-90">
-          Weiterlesen →
-        </button>
-      )}
-    </Card>
-  );
-}
-
-/* ---------- Supabase Data Hooks: Features & FAQs (NEW) ---------- */
 function useFeatures(defaults) {
   const [state, setState] = useState({ data: [], loading: true, error: "" });
   useEffect(() => {
@@ -262,11 +292,16 @@ function useFeatures(defaults) {
         setState({ data: [], loading: false, error: e?.message || "Load error" });
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
-  const list = (state.data?.length ? state.data.map(f => ({ id: f.id, title: f.title, body: f.body, icon: f.icon ?? "✨" })) : defaults);
+  const list = state.data?.length
+    ? state.data.map((f) => ({ id: f.id, title: f.title, body: f.body, icon: f.icon ?? "✨" }))
+    : defaults;
   return { list, loading: state.loading, error: state.error };
 }
+
 function useFaqs(defaults) {
   const [state, setState] = useState({ data: [], loading: true, error: "" });
   useEffect(() => {
@@ -287,18 +322,20 @@ function useFaqs(defaults) {
         setState({ data: [], loading: false, error: e?.message || "Load error" });
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
-  const list = (state.data?.length ? state.data.map(q => ({ id: q.id, question: q.question, answer: q.answer })) : defaults);
+  const list = state.data?.length
+    ? state.data.map((q) => ({ id: q.id, question: q.question, answer: q.answer }))
+    : defaults;
   return { list, loading: state.loading, error: state.error };
 }
 
-/* ---------- Seiten ---------- */
+/* ---------- Public Pages ---------- */
 function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
-  const latest = (publishedPosts || []).slice(0, 2);
   return (
     <>
-      {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-b from-zinc-900 to-black py-16 md:py-24 border-b border-white/10">
         <Container>
           <div className="mb-6">
@@ -314,22 +351,12 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
         </Container>
       </section>
 
-      <Section title="Was ist Coach Milo?">
-        <div className="text-white/80 max-w-3xl space-y-3">
-          <p>
-            Coach Milo ist eine Fitness-App, die dir einen echten KI-Coach an die Seite stellt.
-            Kein Rätselraten mehr, sondern klare, individuell angepasste Pläne.
-          </p>
-        </div>
-      </Section>
-
       <Section title="Warum Coach Milo?">
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3>
             <p className="text-white/70 text-sm">
-              Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag.
-              Jede Einheit ist auf dich zugeschnitten.
+              Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.
             </p>
           </Card>
           <Card>
@@ -338,23 +365,6 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
               Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.
             </p>
           </Card>
-        </div>
-      </Section>
-
-      <Section title="So bringt dich Milo weiter">
-        <div className="grid md:grid-cols-5 gap-4">
-          {[
-            "Deine Ausgangslage verstehen",
-            "Ziele festlegen",
-            "Plan entwickeln",
-            "Trainieren & Feedback bekommen",
-            "Anpassen & Fortschritt sichern",
-          ].map((step, idx) => (
-            <Card key={idx}>
-              <div className="text-white/60 text-xs">Schritt {idx + 1}</div>
-              <div className="text-white mt-1 font-medium">{step}</div>
-            </Card>
-          ))}
         </div>
       </Section>
 
@@ -385,7 +395,9 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
           {faqs.map((q) => (
             <Card key={q.id}>
               <details>
-                <summary className="text-white font-medium cursor-pointer">{q.question}</summary>
+                <summary className="text-white font-medium cursor-pointer">
+                  {q.question}
+                </summary>
                 <p className="text-white/70 text-sm mt-2">{q.answer}</p>
               </details>
             </Card>
@@ -395,10 +407,26 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
 
       <Section title="Neu im Blog">
         <div className="space-y-4">
-          {(publishedPosts || []).slice(0,2).length === 0 && (
+          {(publishedPosts || []).slice(0, 2).length === 0 && (
             <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
           )}
-          {(publishedPosts || []).slice(0,2).map((p) => <PostCard key={p.id} post={p} compact onOpen={onOpenPost} />)}
+          {(publishedPosts || [])
+            .slice(0, 2)
+            .map((p) => (
+              <Card key={p.id}>
+                <h3 className="text-white font-medium">{p.title}</h3>
+                {p.excerpt && (
+                  <p className="text-white/70 text-sm mt-2">{p.excerpt}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenPost(p.slug)}
+                  className="mt-3 inline-flex items-center gap-1 text-brand hover:opacity-90"
+                >
+                  Weiterlesen →
+                </button>
+              </Card>
+            ))}
         </div>
       </Section>
     </>
@@ -421,25 +449,26 @@ function FeaturesPage({ features }) {
   );
 }
 
-function HowPage() {
-  return (
-    <Section title="So funktioniert’s" subtitle="Der Coach-Kreislauf – iterativ zur Bestform.">
-      <ol className="list-decimal list-inside text-white/80 space-y-2 max-w-3xl">
-        <li>Status erfassen (Ziele, Erfahrung, Equipment, Zeitbudget)</li>
-        <li>Strategie ableiten (Volumen, Intensität, Frequenz)</li>
-        <li>Plan erstellen (Übungen, Sätze/Wdh., Progression)</li>
-        <li>Training umsetzen & tracken (Feedback-Impulse)</li>
-        <li>Erfolg messen & anpassen (Plateau-Methoden, Deloads)</li>
-      </ol>
-    </Section>
-  );
-}
-
 function BlogPage({ publishedPosts, onOpen }) {
   return (
     <Section title="Blog & Updates" subtitle="Transparente Roadmap, Einblicke, Learnings.">
       <div className="space-y-4">
-        {(publishedPosts || []).map((p) => <PostCard key={p.id} post={p} compact onOpen={onOpen} />)}
+        {(publishedPosts || []).map((p) => (
+          <Card key={p.id}>
+            <h3 className="text-white font-medium">{p.title}</h3>
+            {p.excerpt && <p className="text-white/70 text-sm mt-2">{p.excerpt}</p>}
+            <button
+              type="button"
+              onClick={() => onOpen(p.slug)}
+              className="mt-3 inline-flex items-center gap-1 text-brand hover:opacity-90"
+            >
+              Weiterlesen →
+            </button>
+          </Card>
+        ))}
+        {(publishedPosts || []).length === 0 && (
+          <p className="text-white/60 text-sm">Noch keine Beiträge veröffentlicht.</p>
+        )}
       </div>
     </Section>
   );
@@ -452,7 +481,9 @@ function FAQPage({ faqs }) {
         {faqs.map((q) => (
           <Card key={q.id}>
             <details>
-              <summary className="text-white font-medium cursor-pointer">{q.question}</summary>
+              <summary className="text-white font-medium cursor-pointer">
+                {q.question}
+              </summary>
               <p className="text-white/70 text-sm mt-2">{q.answer}</p>
             </details>
           </Card>
@@ -462,83 +493,14 @@ function FAQPage({ faqs }) {
   );
 }
 
-function KontaktPage() {
-  return (
-    <Section title="Kontakt" subtitle="Fragen? Schreib uns – wir freuen uns.">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
-          <p className="text-white/80 text-sm">E-Mail: hello@coachmilo.app</p>
-          <p className="text-white/60 text-xs mt-2">
-            Hinweis: Während der Beta antworten wir in der Regel innerhalb von 48 Stunden.
-          </p>
-        </Card>
-        <Card>
-          <p className="text-white/80 text-sm">Geschäftlich/PR: press@coachmilo.app</p>
-          <p className="text-white/60 text-xs mt-2">Wir schicken dir gern unser Factsheet.</p>
-        </Card>
-      </div>
-    </Section>
-  );
-}
-
-function LegalPage() {
-  return (
-  <Section title="Rechtliches" subtitle="Impressum & Datenschutz (Kurzfassung)">
-      <div className="space-y-4 text-white/70 text-sm">
-        <div>
-          <h3 className="text-white font-medium">Impressum</h3>
-          <p>Lakeview Solutions – Coach Milo (Platzhalter-Daten)</p>
-          <p>Adresse, AT-UID, Kontakt folgen.</p>
-        </div>
-        <div>
-          <h3 className="text-white font-medium">Datenschutz</h3>
-          <p>
-            Wir verarbeiten Beta-E-Mails ausschließlich zur Kontaktaufnahme im Rahmen der Beta.
-            Auf Anfrage löschen wir deine Daten umgehend.
-          </p>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-/* ---------- Debug ---------- */
-function runTests(state) {
-  const results = [];
-  function test(name, fn) { try { results.push({ name, ok: !!fn() }); } catch { results.push({ name, ok: false }); } }
-  test("Release-Banner vorhanden", () => typeof state.settings.releaseBanner === "string" && state.settings.releaseBanner.length > 5);
-  test("Hero hat Bild-Konfiguration", () => ["inline", "url"].includes(state.settings.heroImageMode));
-  test("Mind. 3 Features vorhanden", () => state.features.length >= 3);
-  test("FAQ nicht leer", () => state.faqs.length >= 1);
-  return results;
-}
-function DebugPage({ settings, features, faqs }) {
-  const tests = runTests({ settings, features, faqs });
-  return (
-    <Section title="Debug & Tests" subtitle="Schnelle Checks für Inhalte & Flows.">
-      <Card>
-        <div className="space-y-2">
-          {tests.map((t, i) => (
-            <div key={i} className={`flex items-center justify-between text-sm ${t.ok ? "text-brand" : "text-red-300"}`}>
-              <span>{t.name}</span>
-              <span>{t.ok ? "PASS" : "FAIL"}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </Section>
-  );
-}
-
-/* ---------- Admin: Supabase CRUD (Posts + Upload) ---------- */
+/* ---------- Admin (Tabs + CRUD + Einstellungen) ---------- */
 function AdminPage() {
-  const { session, loading, signInWithPassword } = useAuth?.() ?? { session: null, loading: false, signInWithPassword: async()=>{} };
+  const { session, loading, signInWithPassword } = useAuth();
 
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
 
-  // Tabs
-  const TABS = ["Beiträge", "Features", "FAQ"];
+  const TABS = ["Beiträge", "Features", "FAQ", "Einstellungen"];
   const [tab, setTab] = useState(TABS[0]);
 
   /* ===================== POSTS (CRUD) ===================== */
@@ -553,8 +515,7 @@ function AdminPage() {
         .from("cms_posts")
         .select("*")
         .order("created_at", { ascending: false });
-      if (error) return alert(error.message);
-      setPosts(data || []);
+      if (!error) setPosts(data || []);
     })();
   }, [session]);
 
@@ -570,9 +531,15 @@ function AdminPage() {
       published: false,
       published_at: null,
     };
-    const { data, error } = await supabase.from("cms_posts").insert(draft).select().single();
-    if (error) return alert(error.message);
-    setPosts([data, ...posts]); setEditingPost(data);
+    const { data, error } = await supabase
+      .from("cms_posts")
+      .insert(draft)
+      .select()
+      .single();
+    if (!error && data) {
+      setPosts([data, ...posts]);
+      setEditingPost(data);
+    }
   }
 
   async function savePost(p) {
@@ -587,22 +554,32 @@ function AdminPage() {
         tags: p.tags ?? [],
         author: p.author ?? "",
         published: !!p.published,
-        published_at: p.published ? (p.published_at || new Date().toISOString()) : p.published_at,
+        published_at: p.published ? p.published_at || new Date().toISOString() : p.published_at,
       };
-      const { data, error } = await supabase.from("cms_posts").update(patch).eq("id", p.id).select().single();
+      const { data, error } = await supabase
+        .from("cms_posts")
+        .update(patch)
+        .eq("id", p.id)
+        .select()
+        .single();
       if (error) throw error;
-      setPosts(posts.map(x => x.id === p.id ? data : x));
+      setPosts(posts.map((x) => (x.id === p.id ? data : x)));
       setEditingPost(data);
       alert("Gespeichert.");
-    } catch (e) { alert(e.message); } finally { setSavingPost(false); }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingPost(false);
+    }
   }
 
   async function removePost(id) {
     if (!confirm("Diesen Post wirklich löschen?")) return;
     const { error } = await supabase.from("cms_posts").delete().eq("id", id);
-    if (error) return alert(error.message);
-    setPosts(posts.filter(p => p.id !== id));
-    if (editingPost?.id === id) setEditingPost(null);
+    if (!error) {
+      setPosts(posts.filter((p) => p.id !== id));
+      if (editingPost?.id === id) setEditingPost(null);
+    }
   }
 
   /* ===================== FEATURES (CRUD) ===================== */
@@ -618,8 +595,7 @@ function AdminPage() {
         .select("*")
         .order("position", { ascending: true })
         .order("created_at", { ascending: true });
-      if (error) return alert(error.message);
-      setFeatures(data || []);
+      if (!error) setFeatures(data || []);
     })();
   }, [session]);
 
@@ -631,9 +607,15 @@ function AdminPage() {
       position: (features?.length || 0) + 1,
       published: false,
     };
-    const { data, error } = await supabase.from("cms_features").insert(draft).select().single();
-    if (error) return alert(error.message);
-    setFeatures([data, ...features]); setEditingFeature(data);
+    const { data, error } = await supabase
+      .from("cms_features")
+      .insert(draft)
+      .select()
+      .single();
+    if (!error && data) {
+      setFeatures([data, ...features]);
+      setEditingFeature(data);
+    }
   }
 
   async function saveFeature(f) {
@@ -646,20 +628,30 @@ function AdminPage() {
         position: Number(f.position) || 0,
         published: !!f.published,
       };
-      const { data, error } = await supabase.from("cms_features").update(patch).eq("id", f.id).select().single();
+      const { data, error } = await supabase
+        .from("cms_features")
+        .update(patch)
+        .eq("id", f.id)
+        .select()
+        .single();
       if (error) throw error;
-      setFeatures(features.map(x => x.id === f.id ? data : x));
+      setFeatures(features.map((x) => (x.id === f.id ? data : x)));
       setEditingFeature(data);
       alert("Gespeichert.");
-    } catch (e) { alert(e.message); } finally { setSavingFeature(false); }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingFeature(false);
+    }
   }
 
   async function removeFeature(id) {
     if (!confirm("Dieses Feature wirklich löschen?")) return;
     const { error } = await supabase.from("cms_features").delete().eq("id", id);
-    if (error) return alert(error.message);
-    setFeatures(features.filter(x => x.id !== id));
-    if (editingFeature?.id === id) setEditingFeature(null);
+    if (!error) {
+      setFeatures(features.filter((x) => x.id !== id));
+      if (editingFeature?.id === id) setEditingFeature(null);
+    }
   }
 
   /* ===================== FAQ (CRUD) ===================== */
@@ -675,8 +667,7 @@ function AdminPage() {
         .select("*")
         .order("position", { ascending: true })
         .order("created_at", { ascending: true });
-      if (error) return alert(error.message);
-      setFaqs(data || []);
+      if (!error) setFaqs(data || []);
     })();
   }, [session]);
 
@@ -687,9 +678,15 @@ function AdminPage() {
       position: (faqs?.length || 0) + 1,
       published: false,
     };
-    const { data, error } = await supabase.from("cms_faqs").insert(draft).select().single();
-    if (error) return alert(error.message);
-    setFaqs([data, ...faqs]); setEditingFaq(data);
+    const { data, error } = await supabase
+      .from("cms_faqs")
+      .insert(draft)
+      .select()
+      .single();
+    if (!error && data) {
+      setFaqs([data, ...faqs]);
+      setEditingFaq(data);
+    }
   }
 
   async function saveFaq(q) {
@@ -701,20 +698,86 @@ function AdminPage() {
         position: Number(q.position) || 0,
         published: !!q.published,
       };
-      const { data, error } = await supabase.from("cms_faqs").update(patch).eq("id", q.id).select().single();
+      const { data, error } = await supabase
+        .from("cms_faqs")
+        .update(patch)
+        .eq("id", q.id)
+        .select()
+        .single();
       if (error) throw error;
-      setFaqs(faqs.map(x => x.id === q.id ? data : x));
+      setFaqs(faqs.map((x) => (x.id === q.id ? data : x)));
       setEditingFaq(data);
       alert("Gespeichert.");
-    } catch (e) { alert(e.message); } finally { setSavingFaq(false); }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingFaq(false);
+    }
   }
 
   async function removeFaq(id) {
     if (!confirm("Diese FAQ wirklich löschen?")) return;
     const { error } = await supabase.from("cms_faqs").delete().eq("id", id);
-    if (error) return alert(error.message);
-    setFaqs(faqs.filter(x => x.id !== id));
-    if (editingFaq?.id === id) setEditingFaq(null);
+    if (!error) {
+      setFaqs(faqs.filter((x) => x.id !== id));
+      if (editingFaq?.id === id) setEditingFaq(null);
+    }
+  }
+
+  /* ===================== SETTINGS (Hero) ===================== */
+  const [settingsRow, setSettingsRow] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("cms_settings")
+        .select("*")
+        .eq("id", 1)
+        .single();
+      if (!error) setSettingsRow(data);
+    })();
+  }, [session]);
+
+  async function saveSettings(next) {
+    setSavingSettings(true);
+    try {
+      const { data, error } = await supabase
+        .from("cms_settings")
+        .update({
+          hero_image_mode: next.hero_image_mode ?? "url",
+          hero_image_url: next.hero_image_url ?? null,
+        })
+        .eq("id", 1)
+        .select()
+        .single();
+      if (error) throw error;
+      setSettingsRow(data);
+      alert("Einstellungen gespeichert.");
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function uploadHero(file) {
+    if (!file) return;
+    try {
+      const path = `settings/hero-${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage
+        .from("cms_images")
+        .upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage
+        .from("cms_images")
+        .getPublicUrl(path);
+      const url = pub?.publicUrl || "";
+      setSettingsRow({ ...(settingsRow || { id: 1, hero_image_mode: "url" }), hero_image_url: url });
+    } catch (e) {
+      alert(e.message);
+    }
   }
 
   /* ===================== AUTH UI ===================== */
@@ -725,17 +788,35 @@ function AdminPage() {
       </Section>
     );
   }
-
   if (!session) {
     return (
       <Section title="Admin Login" subtitle="E-Mail und Passwort eingeben">
         <div className="max-w-sm space-y-3">
-          <Input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
-          <Input type="password" placeholder="Passwort" value={pw} onChange={e=>setPw(e.target.value)} />
-          <Button variant="primary" onClick={async () => { try { await signInWithPassword(email, pw); } catch(e) { alert(e.message); } }}>
+          <Input
+            placeholder="E-Mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            type="password"
+            placeholder="Passwort"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
+          <Button
+            onClick={async () => {
+              try {
+                await signInWithPassword(email, pw);
+              } catch (e) {
+                alert(e.message);
+              }
+            }}
+          >
             Einloggen
           </Button>
-          <p className="text-white/50 text-xs">Hinweis: Für Magic-Link-Login brauchst du SMTP – später optional.</p>
+          <p className="text-white/50 text-xs">
+            Hinweis: Für Magic-Link-Login brauchst du SMTP – später optional.
+          </p>
         </div>
       </Section>
     );
@@ -743,7 +824,7 @@ function AdminPage() {
 
   /* ===================== TABS UI ===================== */
   return (
-    <Section title="Admin" subtitle="Beiträge, Features & FAQs verwalten">
+    <Section title="Admin" subtitle="Beiträge, Features, FAQs & Einstellungen (Supabase)">
       {/* Tabs */}
       <div className="mb-4 flex items-center gap-2">
         {TABS.map((t) => (
@@ -751,7 +832,9 @@ function AdminPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-              tab === t ? "bg-white/10 text-white border-white/20" : "bg-transparent text-white/80 hover:text-white border-white/20"
+              tab === t
+                ? "bg-white/10 text-white border-white/20"
+                : "bg-transparent text-white/80 hover:text-white border-white/20"
             }`}
           >
             {t}
@@ -765,22 +848,25 @@ function AdminPage() {
           <Card>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-white font-medium">Beiträge</h3>
-              <Button variant="primary" onClick={createPost}>+ Neuer Post</Button>
+              <Button onClick={createPost}>+ Neuer Post</Button>
             </div>
             <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {posts.map(p => (
+              {posts.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-2">
                   <div
-                    role="button" tabIndex={0}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setEditingPost(p)}
-                    onKeyDown={(e)=> e.key==="Enter" ? setEditingPost(p) : null}
+                    onKeyDown={(e) => (e.key === "Enter" ? setEditingPost(p) : null)}
                     className="text-left text-white/80 hover:text-white cursor-pointer select-none"
                   >
                     {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-white/40 text-xs">{p.slug}</span>
-                    <Button variant="ghost" onClick={() => removePost(p.id)}>Löschen</Button>
+                    <Button variant="ghost" onClick={() => removePost(p.id)}>
+                      Löschen
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -792,24 +878,47 @@ function AdminPage() {
               <p className="text-white/60 text-sm">Post auswählen oder erstellen.</p>
             ) : (
               <div className="space-y-2">
-                <Input value={editingPost.title} onChange={e=>setEditingPost({ ...editingPost, title: e.target.value })} placeholder="Titel" />
-                <Input value={editingPost.slug} onChange={e=>setEditingPost({ ...editingPost, slug: e.target.value })} placeholder="slug" />
-                <Textarea rows={2} value={editingPost.excerpt || ""} onChange={e=>setEditingPost({ ...editingPost, excerpt: e.target.value })} placeholder="Kurzbeschreibung" />
+                <Input
+                  value={editingPost.title}
+                  onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })}
+                  placeholder="Titel"
+                />
+                <Input
+                  value={editingPost.slug}
+                  onChange={(e) => setEditingPost({ ...editingPost, slug: e.target.value })}
+                  placeholder="slug"
+                />
+                <Textarea
+                  rows={2}
+                  value={editingPost.excerpt || ""}
+                  onChange={(e) => setEditingPost({ ...editingPost, excerpt: e.target.value })}
+                  placeholder="Kurzbeschreibung"
+                />
                 <div>
                   <label className="text-white/70 text-sm">Inhalt (HTML)</label>
                   <Textarea
                     rows={10}
                     value={editingPost.content_html || ""}
-                    onChange={e=>setEditingPost({ ...editingPost, content_html: e.target.value })}
+                    onChange={(e) =>
+                      setEditingPost({ ...editingPost, content_html: e.target.value })
+                    }
                     placeholder="<p>Dein HTML-Inhalt hier.</p>"
                   />
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="inline-flex items-center gap-2 text-white/80 text-sm">
-                    <input type="checkbox" checked={!!editingPost.published} onChange={e=>setEditingPost({ ...editingPost, published: e.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={!!editingPost.published}
+                      onChange={(e) =>
+                        setEditingPost({ ...editingPost, published: e.target.checked })
+                      }
+                    />
                     Veröffentlicht
                   </label>
-                  <Button onClick={() => savePost(editingPost)}>{savingPost ? "Speichern…" : "Speichern"}</Button>
+                  <Button onClick={() => savePost(editingPost)}>
+                    {savingPost ? "Speichern…" : "Speichern"}
+                  </Button>
                 </div>
               </div>
             )}
@@ -823,22 +932,25 @@ function AdminPage() {
           <Card>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-white font-medium">Features</h3>
-              <Button variant="primary" onClick={createFeature}>+ Neues Feature</Button>
+              <Button onClick={createFeature}>+ Neues Feature</Button>
             </div>
             <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {features.map(f => (
+              {features.map((f) => (
                 <div key={f.id} className="flex items-center justify-between gap-2">
                   <div
-                    role="button" tabIndex={0}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setEditingFeature(f)}
-                    onKeyDown={(e)=> e.key==="Enter" ? setEditingFeature(f) : null}
+                    onKeyDown={(e) => (e.key === "Enter" ? setEditingFeature(f) : null)}
                     className="text-left text-white/80 hover:text-white cursor-pointer select-none"
                   >
                     {f.title || "(Ohne Titel)"} {f.published ? "• LIVE" : ""}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-white/40 text-xs">#{f.position ?? 0}</span>
-                    <Button variant="ghost" onClick={() => removeFeature(f.id)}>Löschen</Button>
+                    <Button variant="ghost" onClick={() => removeFeature(f.id)}>
+                      Löschen
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -850,18 +962,44 @@ function AdminPage() {
               <p className="text-white/60 text-sm">Feature auswählen oder erstellen.</p>
             ) : (
               <div className="space-y-2">
-                <Input value={editingFeature.title || ""} onChange={e=>setEditingFeature({ ...editingFeature, title: e.target.value })} placeholder="Titel" />
-                <Textarea rows={3} value={editingFeature.body || ""} onChange={e=>setEditingFeature({ ...editingFeature, body: e.target.value })} placeholder="Beschreibung" />
+                <Input
+                  value={editingFeature.title || ""}
+                  onChange={(e) => setEditingFeature({ ...editingFeature, title: e.target.value })}
+                  placeholder="Titel"
+                />
+                <Textarea
+                  rows={3}
+                  value={editingFeature.body || ""}
+                  onChange={(e) => setEditingFeature({ ...editingFeature, body: e.target.value })}
+                  placeholder="Beschreibung"
+                />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input value={editingFeature.icon || ""} onChange={e=>setEditingFeature({ ...editingFeature, icon: e.target.value })} placeholder="Icon (Emoji/Text)" />
-                  <Input type="number" value={editingFeature.position ?? 0} onChange={e=>setEditingFeature({ ...editingFeature, position: e.target.value })} placeholder="Position" />
+                  <Input
+                    value={editingFeature.icon || ""}
+                    onChange={(e) => setEditingFeature({ ...editingFeature, icon: e.target.value })}
+                    placeholder="Icon (Emoji oder Text)"
+                  />
+                  <Input
+                    type="number"
+                    value={editingFeature.position ?? 0}
+                    onChange={(e) => setEditingFeature({ ...editingFeature, position: e.target.value })}
+                    placeholder="Position"
+                  />
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="inline-flex items-center gap-2 text-sm text-white/80">
-                    <input type="checkbox" checked={!!editingFeature.published} onChange={e=>setEditingFeature({ ...editingFeature, published: e.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={!!editingFeature.published}
+                      onChange={(e) =>
+                        setEditingFeature({ ...editingFeature, published: e.target.checked })
+                      }
+                    />
                     Veröffentlicht
                   </label>
-                  <Button onClick={() => saveFeature(editingFeature)}>{savingFeature ? "Speichern…" : "Speichern"}</Button>
+                  <Button onClick={() => saveFeature(editingFeature)}>
+                    {savingFeature ? "Speichern…" : "Speichern"}
+                  </Button>
                 </div>
               </div>
             )}
@@ -875,22 +1013,25 @@ function AdminPage() {
           <Card>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-white font-medium">FAQ</h3>
-              <Button variant="primary" onClick={createFaq}>+ Neue Frage</Button>
+              <Button onClick={createFaq}>+ Neue Frage</Button>
             </div>
             <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {faqs.map(q => (
+              {faqs.map((q) => (
                 <div key={q.id} className="flex items-center justify-between gap-2">
                   <div
-                    role="button" tabIndex={0}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setEditingFaq(q)}
-                    onKeyDown={(e)=> e.key==="Enter" ? setEditingFaq(q) : null}
+                    onKeyDown={(e) => (e.key === "Enter" ? setEditingFaq(q) : null)}
                     className="text-left text-white/80 hover:text-white cursor-pointer select-none"
                   >
                     {q.question || "(Ohne Frage)"} {q.published ? "• LIVE" : ""}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-white/40 text-xs">#{q.position ?? 0}</span>
-                    <Button variant="ghost" onClick={() => removeFaq(q.id)}>Löschen</Button>
+                    <Button variant="ghost" onClick={() => removeFaq(q.id)}>
+                      Löschen
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -902,19 +1043,113 @@ function AdminPage() {
               <p className="text-white/60 text-sm">Frage auswählen oder erstellen.</p>
             ) : (
               <div className="space-y-2">
-                <Input value={editingFaq.question || ""} onChange={e=>setEditingFaq({ ...editingFaq, question: e.target.value })} placeholder="Frage" />
-                <Textarea rows={6} value={editingFaq.answer || ""} onChange={e=>setEditingFaq({ ...editingFaq, answer: e.target.value })} placeholder="Antwort" />
+                <Input
+                  value={editingFaq.question || ""}
+                  onChange={(e) => setEditingFaq({ ...editingFaq, question: e.target.value })}
+                  placeholder="Frage"
+                />
+                <Textarea
+                  rows={6}
+                  value={editingFaq.answer || ""}
+                  onChange={(e) => setEditingFaq({ ...editingFaq, answer: e.target.value })}
+                  placeholder="Antwort"
+                />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="number" value={editingFaq.position ?? 0} onChange={e=>setEditingFaq({ ...editingFaq, position: e.target.value })} placeholder="Position" />
+                  <Input
+                    type="number"
+                    value={editingFaq.position ?? 0}
+                    onChange={(e) => setEditingFaq({ ...editingFaq, position: e.target.value })}
+                    placeholder="Position"
+                  />
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="inline-flex items-center gap-2 text-sm text-white/80">
-                    <input type="checkbox" checked={!!editingFaq.published} onChange={e=>setEditingFaq({ ...editingFaq, published: e.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={!!editingFaq.published}
+                      onChange={(e) =>
+                        setEditingFaq({ ...editingFaq, published: e.target.checked })
+                      }
+                    />
                     Veröffentlicht
                   </label>
-                  <Button onClick={() => saveFaq(editingFaq)}>{savingFaq ? "Speichern…" : "Speichern"}</Button>
+                  <Button onClick={() => saveFaq(editingFaq)}>
+                    {savingFaq ? "Speichern…" : "Speichern"}
+                  </Button>
                 </div>
               </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* Einstellungen */}
+      {tab === "Einstellungen" && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card>
+            <h3 className="text-white font-medium mb-2">Hero Bild</h3>
+            {!settingsRow ? (
+              <p className="text-white/60 text-sm">Lade Einstellungen…</p>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-white/70 text-sm">Modus</label>
+                  <Select
+                    value={settingsRow.hero_image_mode || "url"}
+                    onChange={(e) =>
+                      setSettingsRow({ ...settingsRow, hero_image_mode: e.target.value })
+                    }
+                  >
+                    <option value="url">URL</option>
+                    <option value="inline">Inline (SVG)</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-white/70 text-sm">Bild-URL (öffentlich)</label>
+                  <Input
+                    placeholder="https://…"
+                    value={settingsRow.hero_image_url || ""}
+                    onChange={(e) =>
+                      setSettingsRow({ ...settingsRow, hero_image_url: e.target.value })
+                    }
+                  />
+                  <div className="mt-2">
+                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
+                      Upload
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => uploadHero(e.target.files?.[0])}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button onClick={() => saveSettings(settingsRow)}>
+                    {savingSettings ? "Speichern…" : "Speichern"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-white font-medium mb-2">Vorschau</h3>
+            {settingsRow?.hero_image_mode === "url" && settingsRow?.hero_image_url ? (
+              <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
+                <img
+                  src={settingsRow.hero_image_url}
+                  alt="Hero Preview"
+                  className="w-full h-auto object-contain"
+                />
+              </div>
+            ) : (
+              <p className="text-white/60 text-sm">
+                Aktuell „Inline“ – es wird die eingebaute SVG verwendet.
+              </p>
             )}
           </Card>
         </div>
@@ -923,16 +1158,19 @@ function AdminPage() {
   );
 }
 
-
 /* ---------- Shell / Navigation ---------- */
-const PAGES = ["Home", "Features", "How", "Blog", "FAQ", "Kontakt", "Recht", "Admin", "Debug"];
+const PAGES = ["Home", "Features", "Blog", "FAQ", "Admin"];
 function Shell({ settings, onNavigate, active }) {
   return (
     <header className="sticky top-0 z-20 backdrop-blur border-b border-white/10 bg-black/40">
       <Container>
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl" style={{ background: "linear-gradient(135deg, #ff9a3e, #ff7a00)" }} aria-hidden />
+            <div
+              className="h-8 w-8 rounded-xl"
+              style={{ background: "linear-gradient(135deg, #ff9a3e, #ff7a00)" }}
+              aria-hidden
+            />
             <span className="text-white font-semibold">{settings.brand}</span>
           </div>
           <nav className="hidden md:flex items-center gap-2">
@@ -941,7 +1179,9 @@ function Shell({ settings, onNavigate, active }) {
                 key={p}
                 onClick={() => onNavigate(p)}
                 className={`px-3 py-1.5 rounded-lg text-sm transition border ${
-                  active === p ? "bg-white/10 text-white border-white/20" : "bg-transparent text-white/80 hover:text-white border-white/20"
+                  active === p
+                    ? "bg-white/10 text-white border-white/20"
+                    : "bg-transparent text-white/80 hover:text-white border-white/20"
                 }`}
               >
                 {p}
@@ -956,19 +1196,13 @@ function Shell({ settings, onNavigate, active }) {
 
 /* ---------- Root App ---------- */
 export default function App() {
-  const [settings] = useState(DEFAULT_SETTINGS);
-
-  // CHANGED: aus Supabase laden, mit Fallback
+  const settings = useSettings(DEFAULT_SETTINGS);
   const { list: features } = useFeatures(DEFAULT_FEATURES);
   const { list: faqs } = useFaqs(DEFAULT_FAQS);
-
   const [page, setPage] = useState("Home");
-
-  // Detailseite
   const [selectedSlug, setSelectedSlug] = useState(null);
-
-  // Veröffentliche Posts aus Supabase lesen (Public)
   const [publishedPosts, setPublishedPosts] = useState([]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -987,13 +1221,23 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.className = "bg-black";
-    try { document.body.style.margin = "0"; document.body.style.background = "#000"; } catch {}
+    try {
+      document.body.style.margin = "0";
+      document.body.style.background = "#000";
+    } catch {}
   }, []);
 
   return (
     <AuthProvider>
       <div className="min-h-screen bg-black text-white">
-        <Shell settings={settings} onNavigate={(p)=>{ setPage(p); if(p!=="Post") setSelectedSlug(null); }} active={page} />
+        <Shell
+          settings={settings}
+          onNavigate={(p) => {
+            setPage(p);
+            if (p !== "Post") setSelectedSlug(null);
+          }}
+          active={page}
+        />
 
         {page === "Home" && (
           <HomePage
@@ -1001,17 +1245,24 @@ export default function App() {
             features={features}
             faqs={faqs}
             publishedPosts={publishedPosts}
-            onOpenPost={(slug)=>{ setSelectedSlug(slug); setPage("Post"); }}
+            onOpenPost={(slug) => {
+              setSelectedSlug(slug);
+              setPage("Post");
+            }}
           />
         )}
         {page === "Features" && <FeaturesPage features={features} />}
-        {page === "How" && <HowPage />}
-        {page === "Blog" && <BlogPage publishedPosts={publishedPosts} onOpen={(slug)=>{ setSelectedSlug(slug); setPage("Post"); }} />}
+        {page === "Blog" && (
+          <BlogPage
+            publishedPosts={publishedPosts}
+            onOpen={(slug) => {
+              setSelectedSlug(slug);
+              setPage("Post");
+            }}
+          />
+        )}
         {page === "FAQ" && <FAQPage faqs={faqs} />}
-        {page === "Kontakt" && <KontaktPage />}
-        {page === "Recht" && <LegalPage />}
         {page === "Admin" && <AdminPage />}
-        {page === "Debug" && <DebugPage settings={settings} features={features} faqs={faqs} />}
         {page === "Post" && selectedSlug && (
           <PostPage slug={selectedSlug} onBack={() => setPage("Blog")} />
         )}
@@ -1021,8 +1272,6 @@ export default function App() {
             <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-white/50 text-sm">
               <div>© {new Date().getFullYear()} {settings.brand}</div>
               <div className="flex items-center gap-3">
-                <a className="hover:text-white" onClick={() => setPage("Recht")}>Impressum & Datenschutz</a>
-                <span>•</span>
                 <a className="hover:text-white" onClick={() => setPage("Admin")}>Admin</a>
                 <span>•</span>
                 <span>Ab Oktober 2025</span>
