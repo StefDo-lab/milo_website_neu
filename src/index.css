@@ -1,68 +1,54 @@
+/* Tailwind v4 aktivieren */
+@import "tailwindcss";
+
+/* Plugins (v4): Typography */
+@plugin "@tailwindcss/typography";
+
+/* Sourcen für den Scan (ersetzt content:[] aus v3) */
+@source "./index.html";
+@source "./src/**/*.{js,jsx,ts,tsx}";
+
+/* Optionales Theme – dein Brand-Orange */
+@theme {
+  --color-brand: #ff9a3e;
+}
+
+/* Globale Basis – dunkler Hintergrund wie in deiner App */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* Body-Reset (dezent) – Tailwind übernimmt sonst das meiste */
+html, body, #root {
+  height: 100%;
 }
-a:hover {
-  color: #535bf2;
-}
-
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  background: #000; /* konsistent mit App */
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* Kleine Helfer für Fokus & Buttons (nutzt Tailwind-Farben) */
+.btn {
+  @apply inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none;
 }
+.btn-primary {
+  @apply text-black border border-[rgba(255,154,62,0.2)];
+  background: var(--color-brand);
+}
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-ghost   { @apply bg-transparent text-white/70 hover:text-white; }
+.btn-default { @apply text-white border border-white/20 hover:bg-white/10; }
 
+/* Tip: Falls du native Button-UI vermeiden willst */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* Optional: Smooth fonts */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

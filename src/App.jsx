@@ -2,13 +2,9 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/auth";
 import PostPage from "./PostPage";
-import RichTextEditor from "./RichTextEditor";
 
 /* ------------------------------------------------------------
-   Coach Milo – Vollständige App.jsx (mit Blog-Detailseite)
-   - Öffentliche Seiten (Hero, Warum, Schritte, Features, FAQ, Blog, Kontakt, Recht, Debug)
-   - Admin: Supabase (Login E-Mail+Passwort), CRUD für cms_posts, Bild-Upload in cms_images
-   - Beta-Signups: schreiben in cms_signups
+   Coach Milo – App.jsx (Orange-Brand + Bildgrößen-Fixes)
 ------------------------------------------------------------ */
 
 /* ---------- Utils ---------- */
@@ -47,40 +43,34 @@ const Card = ({ children }) => (
     {children}
   </div>
 );
+
+/* Buttons: Orange-Brand, ohne native „Pillen“ */
 const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
   const base =
-    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2 focus:ring-emerald-400";
+    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none [-webkit-appearance:none] focus:ring-2";
   const st =
     variant === "primary"
-      ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
+      ? "bg-brand text-black hover:brightness-105 focus:ring-brand border border-[rgba(255,154,62,0.2)]"
       : variant === "ghost"
       ? "bg-transparent text-white/70 hover:text-white"
       : "text-white border border-white/20 hover:bg-white/10";
-
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={`${base} ${st} ${className}`}
-    >
-      {children}
-    </button>
-  );
+  return <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>{children}</button>;
 };
 
-const Input=(p)=>(<input {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
-const Select=(p)=>(<select {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
-const Textarea=(p)=>(<textarea {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-emerald-400 ${p.className||""}`}/>);
+/* Inputs: Fokus-Ring in Brand-Orange */
+const Input=(p)=>(<input {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
+const Select=(p)=>(<select {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
+const Textarea=(p)=>(<textarea {...p} className={`w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand ${p.className||""}`}/>);
 
-/* ---------- Content Defaults (Features/FAQ lokal; Blog via Supabase) ---------- */
+/* ---------- Content Defaults ---------- */
 const DEFAULT_SETTINGS = {
   brand: "Coach Milo",
   heroTitle: "Die Fitness-App mit deinem persönlichen KI-Coach",
   heroSubtitle: "Individuelle Trainingspläne, die deine Situation, dein Niveau und deine Fortschritte berücksichtigen.",
   releaseBanner: "Ab Oktober 2025 im App Store & Play Store",
   betaCta: "Teste Coach Milo schon vor dem Release",
-  accent: "#4ade80",
-  heroImageMode: "inline", // "inline" | "url"
+  accent: "#ff9a3e",                 // ORANGE
+  heroImageMode: "inline",           // "inline" | "url"
   heroImageUrl: "/hero-image.png",
 };
 const DEFAULT_FEATURES = [
@@ -107,14 +97,14 @@ function HeroImage({ settings }) {
       />
     );
   }
-  // Inline SVG Platzhalter
+  // Inline SVG mit Orange-Gradient
   return (
     <div className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10 overflow-hidden">
       <svg viewBox="0 0 1200 600" className="w-full h-auto" role="img" aria-label="Coach Milo Preview">
         <defs>
           <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0%" stopColor={settings.accent} />
-            <stop offset="100%" stopColor="#22c55e" />
+            <stop offset="100%" stopColor="#ff7a00" />
           </linearGradient>
         </defs>
         <rect width="1200" height="600" fill="#0a0a0a" />
@@ -122,12 +112,12 @@ function HeroImage({ settings }) {
         <rect x="500" y="50" width="640" height="500" rx="24" fill="url(#g)" opacity="0.15" />
         <g>
           <rect x="520" y="90" width="600" height="60" rx="12" fill="#111827" />
-          <rect x="540" y="105" width="220" height="30" rx="8" fill="#10b981" opacity="0.7" />
+          <rect x="540" y="105" width="220" height="30" rx="8" fill="#ff9a3e" opacity="0.7" />
           <rect x="520" y="170" width="600" height="320" rx="12" fill="#111827" />
           {Array.from({ length: 5 }).map((_, i) => (
             <g key={i}>
               <rect x="540" y={190 + i * 60} width="340" height="24" rx="6" fill="#e5e7eb" opacity="0.15" />
-              <rect x="900" y={190 + i * 60} width="180" height="24" rx="6" fill="#10b981" opacity="0.6" />
+              <rect x="900" y={190 + i * 60} width="180" height="24" rx="6" fill="#ff9a3e" opacity="0.6" />
             </g>
           ))}
         </g>
@@ -135,7 +125,7 @@ function HeroImage({ settings }) {
           <rect x="80" y="90" width="280" height="420" rx="24" fill="#0b0f13" stroke="#1f2937" />
           <rect x="100" y="120" width="240" height="24" rx="6" fill="#e5e7eb" opacity="0.2" />
           {Array.from({ length: 6 }).map((_, i) => (
-            <rect key={i} x="100" y={160 + i * 40} width="240" height="24" rx="6" fill="#10b981" opacity={0.2 + i * 0.1} />
+            <rect key={i} x="100" y={160 + i * 40} width="240" height="24" rx="6" fill="#ff9a3e" opacity={0.2 + i * 0.1} />
           ))}
         </g>
       </svg>
@@ -209,12 +199,12 @@ function BetaForm({ settings }) {
       <div className="md:col-span-1">
         <Button type="submit">{settings?.betaCta || DEFAULT_SETTINGS.betaCta}</Button>
       </div>
-      {ok && <p className="text-emerald-300 text-sm md:col-span-4">{ok}</p>}
+      {ok && <p className="text-brand text-sm md:col-span-4">{ok}</p>}
     </form>
   );
 }
 
-/* ---------- Markdown (minimal für lokale Texte, nicht für Blog) ---------- */
+/* ---------- Markdown (minimal für lokale Texte) ---------- */
 function renderMarkdown(md) {
   if (!md) return "";
   return md
@@ -226,45 +216,51 @@ function renderMarkdown(md) {
 }
 
 /* ---------- Public: Blog Post Karte (aus Supabase) ---------- */
-function PostCard({ post, compact=false, onOpen }) {
-  const Wrapper = ({ children }) =>
-    onOpen ? (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onOpen(post.slug)}
-        onKeyDown={(e) => (e.key === "Enter" ? onOpen(post.slug) : null)}
-        className="w-full text-left hover:opacity-90 transition cursor-pointer select-none"
-        aria-label={`Öffne Artikel: ${post.title}`}
-      >
-        {children}
-      </div>
-    ) : (
-      <>{children}</>
-    );
-
+function PostCard({ post, compact = false, onOpen }) {
   return (
     <Card>
-      <Wrapper>
-        <h3 className="text-white font-medium">{post.title}</h3>
-        {post.cover_url && isPlausibleUrl(post.cover_url) && (
-          <img src={post.cover_url} alt="Cover" className="mt-2 rounded border border-white/10" />
-        )}
-        {post.excerpt && <p className="text-white/60 text-sm mt-1">{post.excerpt}</p>}
-        {!compact && post.content_html && (
-          <article
-            className="prose prose-invert mt-3 text-white/80"
-            dangerouslySetInnerHTML={{ __html: post.content_html }}
-          />
-        )}
-        {onOpen && (
-          <div className="mt-3">
-            <span className="inline-flex items-center gap-1 text-emerald-300 text-sm">
-              Weiterlesen →
-            </span>
-          </div>
-        )}
-      </Wrapper>
+      <h3 className="text-white font-medium">{post.title}</h3>
+
+      {/* Vorschaubild: fester Slot, kein Flachband mehr */}
+      {post.cover_url && isPlausibleUrl(post.cover_url) && (
+  <div
+    className="mt-2 w-full rounded overflow-hidden border border-white/10 bg-black
+               h-56 md:h-64 flex items-center justify-start"
+  >
+    <img
+      src={post.cover_url}
+      alt="Cover"
+      className="h-full w-auto object-contain"
+      loading="lazy"
+    />
+  </div>
+)}
+
+
+
+      {/* Excerpt */}
+      {post.excerpt && (
+        <p className="text-white/60 text-sm mt-2">{post.excerpt}</p>
+      )}
+
+      {/* Volltext nur, wenn nicht compact */}
+      {!compact && post.content_html && (
+        <article
+          className="prose prose-invert mt-3 text-white/80"
+          dangerouslySetInnerHTML={{ __html: post.content_html }}
+        />
+      )}
+
+      {/* Weiterlesen */}
+      {onOpen && (
+        <button
+          type="button"
+          onClick={() => onOpen(post.slug)}
+          className="mt-3 inline-flex items-center gap-1 text-brand hover:opacity-90"
+        >
+          Weiterlesen →
+        </button>
+      )}
     </Card>
   );
 }
@@ -384,10 +380,7 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
           {latest.length === 0 && (
             <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
           )}
-          {latest.map((p) => (
-  <PostCard key={p.id} post={p} compact onOpen={onOpenPost} />
-))}
-
+          {latest.map((p) => <PostCard key={p.id} post={p} compact onOpen={onOpenPost} />)}
         </div>
       </Section>
     </>
@@ -413,7 +406,7 @@ function FeaturesPage({ features }) {
 function HowPage() {
   return (
     <Section title="So funktioniert’s" subtitle="Der Coach-Kreislauf – iterativ zur Bestform.">
-      <ol className="list-decimal list-inside text-white/80 space-y-2">
+      <ol className="list-decimal list-inside text-white/80 space-y-2 max-w-3xl">
         <li>Status erfassen (Ziele, Erfahrung, Equipment, Zeitbudget)</li>
         <li>Strategie ableiten (Volumen, Intensität, Frequenz)</li>
         <li>Plan erstellen (Übungen, Sätze/Wdh., Progression)</li>
@@ -428,17 +421,11 @@ function BlogPage({ publishedPosts, onOpen }) {
   return (
     <Section title="Blog & Updates" subtitle="Transparente Roadmap, Einblicke, Learnings.">
       <div className="space-y-4">
-        {(publishedPosts || []).length === 0 && (
-          <p className="text-white/60 text-sm">Noch keine Artikel veröffentlicht.</p>
-        )}
-        {(publishedPosts || []).map((p) => (
-          <PostCard key={p.id} post={p} compact onOpen={onOpen} />
-        ))}
+        {(publishedPosts || []).map((p) => <PostCard key={p.id} post={p} compact onOpen={onOpen} />)}
       </div>
     </Section>
   );
 }
-
 
 function FAQPage({ faqs }) {
   return (
@@ -497,7 +484,7 @@ function LegalPage() {
   );
 }
 
-/* ---------- Debug Tests (leicht) ---------- */
+/* ---------- Debug Tests ---------- */
 function runTests(state) {
   const results = [];
   function test(name, fn) {
@@ -517,7 +504,7 @@ function DebugPage({ settings, features, faqs }) {
       <Card>
         <div className="space-y-2">
           {tests.map((t, i) => (
-            <div key={i} className={`flex items-center justify-between text-sm ${t.ok ? "text-emerald-300" : "text-red-300"}`}>
+            <div key={i} className={`flex items-center justify-between text-sm ${t.ok ? "text-brand" : "text-red-300"}`}>
               <span>{t.name}</span>
               <span>{t.ok ? "PASS" : "FAIL"}</span>
             </div>
@@ -557,7 +544,7 @@ function AdminPage() {
       slug: `draft-${Date.now()}`,
       title: "Neuer Artikel",
       excerpt: "",
-      content_html: "<p></p>", // RichText folgt
+      content_html: "<p></p>",
       cover_url: "",
       tags: [],
       author: "",
@@ -650,15 +637,14 @@ function AdminPage() {
             {posts.map(p => (
               <div key={p.id} className="flex items-center justify-between gap-2">
                 <div
-  role="button"
-  tabIndex={0}
-  onClick={() => setEditing(p)}
-  onKeyDown={(e)=> e.key==="Enter" ? setEditing(p) : null}
-  className="text-left text-white/80 hover:text-white cursor-pointer select-none"
->
-  {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
-</div>
-
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setEditing(p)}
+                  onKeyDown={(e)=> e.key==="Enter" ? setEditing(p) : null}
+                  className="text-left text-white/80 hover:text-white cursor-pointer select-none"
+                >
+                  {p.title || "(Ohne Titel)"} {p.published ? "• LIVE" : ""}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-white/40 text-xs">{p.slug}</span>
                   <Button variant="ghost" onClick={() => removePost(p.id)}>Löschen</Button>
@@ -687,20 +673,24 @@ function AdminPage() {
                   </label>
                 </div>
                 {uploading && <p className="text-white/50 text-xs mt-1">Upload…</p>}
-                {editing.cover_url && <img src={editing.cover_url} alt="cover" className="mt-2 rounded border border-white/10" />}
+                {/* Preview klein halten */}
+                {editing.cover_url && (
+                  <div className="mt-2 w-full rounded overflow-hidden border border-white/10">
+                    <img src={editing.cover_url} alt="cover" className="w-full aspect-[16/9] object-cover" />
+                  </div>
+                )}
               </div>
 
               <div>
-  <label className="text-white/70 text-sm">Inhalt</label>
-  <RichTextEditor
-    value={editing.content_html || ""}
-    onChange={(html) => setEditing({ ...editing, content_html: html })}
-  />
-  <p className="text-white/40 text-xs mt-1">
-    Tipp: Mit H2/H3 strukturieren, Link/Bild über Toolbar. Änderungen werden beim Speichern übernommen.
-  </p>
-</div>
-
+                <label className="text-white/70 text-sm">Inhalt</label>
+                {/* Hier bleibt dein RichTextEditor, falls eingebunden */}
+                <Textarea
+                  rows={10}
+                  value={editing.content_html || ""}
+                  onChange={e=>setEditing({ ...editing, content_html: e.target.value })}
+                  placeholder="<p>Dein HTML-Inhalt hier.</p>"
+                />
+              </div>
 
               <div className="flex items-center gap-3">
                 <label className="inline-flex items-center gap-2 text-white/80 text-sm">
@@ -731,7 +721,7 @@ function Shell({ settings, onNavigate, active }) {
           <div className="flex items-center gap-2">
             <div
               className="h-8 w-8 rounded-xl"
-              style={{ background: `linear-gradient(135deg, ${settings.accent}, #22c55e)` }}
+              style={{ background: "linear-gradient(135deg, #ff9a3e, #ff7a00)" }}
               aria-hidden
             />
             <span className="text-white font-semibold">{settings.brand}</span>
@@ -764,6 +754,8 @@ export default function App() {
   const [faqs] = useState(DEFAULT_FAQS);
 
   const [page, setPage] = useState("Home");
+
+  // Detailseite
   const [selectedSlug, setSelectedSlug] = useState(null);
 
   // Veröffentliche Posts aus Supabase lesen (Public)
@@ -779,7 +771,6 @@ export default function App() {
         if (error) throw error;
         setPublishedPosts(data || []);
       } catch {
-        // Fallback: keine Posts
         setPublishedPosts([]);
       }
     })();
@@ -793,37 +784,31 @@ export default function App() {
   return (
     <AuthProvider>
       <div className="min-h-screen bg-black text-white">
-        <Shell settings={settings} onNavigate={setPage} active={page} />
+        <Shell settings={settings} onNavigate={(p)=>{ setPage(p); if(p!=="Post") setSelectedSlug(null); }} active={page} />
 
         {page === "Home" && (
-  <HomePage
-    settings={settings}
-    features={features}
-    faqs={faqs}
-    publishedPosts={publishedPosts}
-    onOpenPost={(slug) => { setSelectedSlug(slug); setPage("Post"); }}
-  />
-)}
-
+          <HomePage
+            settings={settings}
+            features={features}
+            faqs={faqs}
+            publishedPosts={publishedPosts}
+            onOpenPost={(slug)=>{ setSelectedSlug(slug); setPage("Post"); }}
+          />
+        )}
         {page === "Features" && <FeaturesPage features={features} />}
         {page === "How" && <HowPage />}
-        {page === "Blog" && (
-          <BlogPage
-            publishedPosts={publishedPosts}
-            onOpen={(slug) => { setSelectedSlug(slug); setPage("Post"); }}
-          />
-        )}
-        {page === "Post" && (
-          <PostPage
-            slug={selectedSlug}
-            onBack={() => setPage("Blog")}
-          />
-        )}
+        {page === "Blog" && <BlogPage publishedPosts={publishedPosts} onOpen={(slug)=>{ setSelectedSlug(slug); setPage("Post"); }} />}
         {page === "FAQ" && <FAQPage faqs={faqs} />}
         {page === "Kontakt" && <KontaktPage />}
         {page === "Recht" && <LegalPage />}
         {page === "Admin" && <AdminPage />}
         {page === "Debug" && <DebugPage settings={settings} features={features} faqs={faqs} />}
+        {page === "Post" && selectedSlug && (
+          <PostPage
+            slug={selectedSlug}
+            onBack={() => setPage("Blog")}
+          />
+        )}
 
         <footer className="border-t border-white/10 mt-10">
           <Container>

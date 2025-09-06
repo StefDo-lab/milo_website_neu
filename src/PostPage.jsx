@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 
+/** Kleine UI-Helfer wie in App.jsx */
 const Container = ({ children }) => (
   <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
 );
@@ -20,11 +21,19 @@ const Card = ({ children }) => (
   </div>
 );
 const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
-  const base = "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2 focus:ring-emerald-400 bg-transparent";
-  const st = variant === "primary"
-    ? "bg-emerald-500 text-black hover:bg-emerald-400 border border-emerald-400/20"
-    : "text-white border border-white/20 hover:bg-white/10";
-  return <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>{children}</button>;
+  const base =
+    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2";
+  const st =
+    variant === "primary"
+      ? "bg-[#ff9a3e] text-black hover:bg-[#ff8a1e] focus:ring-[#ff9a3e] border border-[rgba(255,154,62,0.2)]"
+      : variant === "ghost"
+      ? "bg-transparent text-white/70 hover:text-white"
+      : "text-white border border-white/20 hover:bg-white/10";
+  return (
+    <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>
+      {children}
+    </button>
+  );
 };
 
 export default function PostPage({ slug, onBack }) {
@@ -54,25 +63,18 @@ export default function PostPage({ slug, onBack }) {
     return () => { alive = false; };
   }, [slug]);
 
-  // Helper: Plaintext/Markdown → HTML-Absätze
+  // Fallback, falls content_html mal Plaintext/Markdown ist
   function toReadableHtml(src = "") {
-    const raw = src.trim();
+    const raw = String(src).trim();
     const looksLikeHtml = /<\s*[a-z][\s\S]*>/i.test(raw);
     if (looksLikeHtml) return raw;
-
-    // 1) einfache Markdown-Überschriften zuerst ersetzen (zeilenweise)
     const withHeads = raw
       .replace(/^###\s*(.+)$/gm, "<h3>$1</h3>")
       .replace(/^##\s*(.+)$/gm, "<h2>$1</h2>")
       .replace(/^#\s*(.+)$/gm, "<h1>$1</h1>");
-
-    // 2) Absätze sind durch mind. eine Leerzeile getrennt
     const paragraphs = withHeads
-      .split(/\n{2,}/)
-      .map(p => p.replace(/\n+/g, " ").trim()) // einfache Zeilenumbrüche → Leerzeichen
-      .filter(Boolean);
-
-    return paragraphs.map(p => `<p>${p}</p>`).join("");
+      .split(/\n{2,}/).map((p) => p.replace(/\n+/g, " ").trim()).filter(Boolean);
+    return paragraphs.map((p) => `<p>${p}</p>`).join("");
   }
 
   return (
@@ -82,33 +84,38 @@ export default function PostPage({ slug, onBack }) {
       </div>
 
       {state.loading && <p className="text-white/70">Lade Artikel…</p>}
+
       {!state.loading && state.error && (
         <Card><p className="text-red-300 text-sm">Fehler: {state.error}</p></Card>
       )}
 
       {!state.loading && !state.error && post && (
         <article className="space-y-4">
-          <h1 className="text-3xl md:text-4xl font-semibold text-white">{post.title}</h1>
-          <div className="text-white/50 text-sm">
-            {post.published_at ? new Date(post.published_at).toLocaleDateString() : ""}
-            {post.author ? ` • ${post.author}` : ""}
-          </div>
+          {/* Gemeinsamer Content-Wrapper: gleiche Breite, LINKS bündig (kein mx-auto!) */}
+          <div className="max-w-3xl">
+            <h1 className="text-3xl md:text-4xl font-semibold text-white">{post.title}</h1>
 
-          {post.excerpt && (<p className="text-white/70 max-w-3xl">{post.excerpt}</p>)}
+            <div className="text-white/50 text-sm">
+              {post.published_at ? new Date(post.published_at).toLocaleDateString() : ""}
+              {post.author ? ` • ${post.author}` : ""}
+            </div>
 
-          {post.cover_url && (
-            <img
-              src={post.cover_url}
-              alt="Cover"
-              className="rounded-2xl border border-white/10 shadow-lg my-2 max-h-[460px] object-cover w-full"
-              loading="lazy"
+            {post.excerpt && <p className="text-white/70">{post.excerpt}</p>}
+
+            {post.cover_url && (
+              <img
+                src={post.cover_url}
+                alt="Cover"
+                className="w-full h-auto rounded-2xl border border-white/10 shadow-lg my-2 object-contain max-h-[70vh]"
+                loading="lazy"
+              />
+            )}
+
+            <div
+              className="prose prose-invert md:prose-lg prose-a:text-brand hover:prose-a:text-orange-200 prose-img:rounded-xl"
+              dangerouslySetInnerHTML={{ __html: toReadableHtml(post.content_html || "") }}
             />
-          )}
-
-          <div
-            className="prose prose-invert max-w-3xl leading-7 md:leading-8"
-            dangerouslySetInnerHTML={{ __html: toReadableHtml(post.content_html || "") }}
-          />
+          </div>
         </article>
       )}
     </Section>
