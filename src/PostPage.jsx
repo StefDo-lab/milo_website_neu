@@ -1,123 +1,130 @@
-// src/PostPage.jsx
-import React, { useEffect, useState } from "react";
-import { supabase } from "./lib/supabaseClient";
+import React, { useEffect, useState } from 'react';
+import { supabase } from './lib/supabaseClient';
+import { useHead } from './lib/useHead';
 
-/** Kleine UI-Helfer wie in App.jsx */
-const Container = ({ children }) => (
-  <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
-);
-const Section = ({ title, subtitle, children }) => (
-  <section className="py-12 md:py-16">
-    <Container>
-      {title && <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">{title}</h2>}
-      {subtitle && <p className="text-white/70 mb-6 max-w-3xl">{subtitle}</p>}
-      {children}
-    </Container>
-  </section>
-);
-const Card = ({ children }) => (
-  <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-white/0 p-5">
-    {children}
-  </div>
-);
-const Button = ({ children, onClick, variant="primary", type="button", className="" }) => {
-  const base =
-    "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none appearance-none focus:ring-2";
-  const st =
-    variant === "primary"
-      ? "bg-[#ff9a3e] text-black hover:bg-[#ff8a1e] focus:ring-[#ff9a3e] border border-[rgba(255,154,62,0.2)]"
-      : variant === "ghost"
-      ? "bg-transparent text-white/70 hover:text-white"
-      : "text-white border border-white/20 hover:bg-white/10";
-  return (
-    <button type={type} onClick={onClick} className={`${base} ${st} ${className}`}>
-      {children}
-    </button>
-  );
-};
+// Helper for building absolute URLs
+const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+
+function stripHtml(html = '') {
+  if (typeof document === 'undefined') return html;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return (tmp.textContent || tmp.innerText || '').trim();
+}
+function truncate(s = '', n = 160) {
+  if (!s) return '';
+  return s.length <= n ? s : s.slice(0, n - 1) + '…';
+}
 
 export default function PostPage({ slug, onBack }) {
+  const { setTitle, upsertMeta, setLink, setJsonLd } = useHead();
+
   const [post, setPost] = useState(null);
-  const [state, setState] = useState({ loading: true, error: "" });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      setState({ loading: true, error: "" });
       try {
         const { data, error } = await supabase
-          .from("cms_posts")
-          .select("id, slug, title, excerpt, cover_url, content_html, author, published_at")
-          .eq("slug", slug)
-          .eq("published", true)
+          .from('cms_posts')
+          .select('id, slug, title, excerpt, author, cover_url, content_html, published, published_at, updated_at')
+          .eq('slug', slug)
           .single();
         if (error) throw error;
         if (!alive) return;
         setPost(data);
-        setState({ loading: false, error: "" });
       } catch (e) {
         if (!alive) return;
-        setState({ loading: false, error: e?.message || "Nicht gefunden" });
+        setError(e?.message || 'Post nicht gefunden');
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [slug]);
 
-  // Fallback, falls content_html mal Plaintext/Markdown ist
-  function toReadableHtml(src = "") {
-    const raw = String(src).trim();
-    const looksLikeHtml = /<\s*[a-z][\s\S]*>/i.test(raw);
-    if (looksLikeHtml) return raw;
-    const withHeads = raw
-      .replace(/^###\s*(.+)$/gm, "<h3>$1</h3>")
-      .replace(/^##\s*(.+)$/gm, "<h2>$1</h2>")
-      .replace(/^#\s*(.+)$/gm, "<h1>$1</h1>");
-    const paragraphs = withHeads
-      .split(/\n{2,}/).map((p) => p.replace(/\n+/g, " ").trim()).filter(Boolean);
-    return paragraphs.map((p) => `<p>${p}</p>`).join("");
+  // SEO head updates when post is available
+  useEffect(() => {
+    if (!post) return;
+    const title = `${post.title} – Coach Milo`;
+    const desc = truncate(post.excerpt || stripHtml(post.content_html || 'Individuelle Trainingspläne mit Coach Milo.'), 180);
+    const url = `${SITE_URL}/blog/${post.slug}`;
+    const img = post.cover_url || undefined;
+
+    setTitle(title);
+    upsertMeta('name', 'description', desc);
+    setLink('canonical', url);
+    // Open Graph
+    upsertMeta('property', 'og:type', 'article');
+    upsertMeta('property', 'og:title', title);
+    upsertMeta('property', 'og:description', desc);
+    upsertMeta('property', 'og:url', url);
+    if (img) upsertMeta('property', 'og:image', img);
+    // Twitter
+    upsertMeta('name', 'twitter:card', 'summary_large_image');
+    upsertMeta('name', 'twitter:title', title);
+    upsertMeta('name', 'twitter:description', desc);
+    if (img) upsertMeta('name', 'twitter:image', img);
+    // JSON-LD
+    setJsonLd('ld-blogpost', {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: desc,
+      image: img ? [img] : undefined,
+      datePublished: post.published_at || undefined,
+      dateModified: post.updated_at || post.published_at || undefined,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      author: post.author ? { '@type': 'Person', name: post.author } : { '@type': 'Organization', name: 'Coach Milo' },
+      publisher: {
+        '@type': 'Organization',
+        name: 'Coach Milo',
+        logo: { '@type': 'ImageObject', url: `${SITE_URL}/logo.png` },
+      },
+    });
+  }, [post]);
+
+  if (loading) {
+    return (
+      <section className="py-12 px-4 md:px-8">
+        <p className="text-white/70">Lade…</p>
+      </section>
+    );
+  }
+  if (error || !post) {
+    return (
+      <section className="py-12 px-4 md:px-8">
+        <p className="text-red-300">{error || 'Post nicht gefunden.'}</p>
+        <button className="mt-4 text-brand" onClick={onBack}>Zurück</button>
+      </section>
+    );
   }
 
   return (
-    <Section>
-      <div className="mb-4">
-        <Button variant="ghost" onClick={onBack}>← Zurück zum Blog</Button>
-      </div>
-
-      {state.loading && <p className="text-white/70">Lade Artikel…</p>}
-
-      {!state.loading && state.error && (
-        <Card><p className="text-red-300 text-sm">Fehler: {state.error}</p></Card>
+    <article className="py-12 px-4 md:px-8 max-w-3xl mx-auto">
+      <button className="text-brand mb-4" onClick={onBack}>← Zurück</button>
+      <h1 className="text-3xl md:text-4xl font-semibold text-white">{post.title}</h1>
+      {post.published_at && (
+        <p className="text-white/50 text-sm mt-1">{new Date(post.published_at).toLocaleDateString()}</p>
       )}
 
-      {!state.loading && !state.error && post && (
-        <article className="space-y-4">
-          {/* Gemeinsamer Content-Wrapper: gleiche Breite, LINKS bündig (kein mx-auto!) */}
-          <div className="max-w-3xl">
-            <h1 className="text-3xl md:text-4xl font-semibold text-white">{post.title}</h1>
-
-            <div className="text-white/50 text-sm">
-              {post.published_at ? new Date(post.published_at).toLocaleDateString() : ""}
-              {post.author ? ` • ${post.author}` : ""}
-            </div>
-
-            {post.excerpt && <p className="text-white/70">{post.excerpt}</p>}
-
-            {post.cover_url && (
-              <img
-                src={post.cover_url}
-                alt="Cover"
-                className="w-full h-auto rounded-2xl border border-white/10 shadow-lg my-2 object-contain max-h-[70vh]"
-                loading="lazy"
-              />
-            )}
-
-            <div
-              className="prose prose-invert md:prose-lg prose-a:text-brand hover:prose-a:text-orange-200 prose-img:rounded-xl"
-              dangerouslySetInnerHTML={{ __html: toReadableHtml(post.content_html || "") }}
-            />
-          </div>
-        </article>
+      {post.cover_url && (
+        <div className="mt-6 rounded-xl overflow-hidden border border-white/10 bg-black">
+          <img src={post.cover_url} alt="Cover" className="w-full h-auto object-contain" loading="lazy" />
+        </div>
       )}
-    </Section>
+
+      {post.excerpt && (
+        <p className="mt-6 text-white/80 text-lg">{post.excerpt}</p>
+      )}
+
+      {post.content_html && (
+        <div className="prose prose-invert max-w-none mt-6" dangerouslySetInnerHTML={{ __html: post.content_html }} />
+      )}
+    </article>
   );
 }
