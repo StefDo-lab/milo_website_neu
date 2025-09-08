@@ -4,6 +4,7 @@
    - WYSIWYG only (RichTextEditor)
    - Tags + SEO-Overrides
    - Admin-Link nur im Footer
+   - Impressum-Seite + Footer-Link auf /privacy-policy.html
 */
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
@@ -367,6 +368,21 @@ function FAQPage({ faqs }) {
   );
 }
 
+/* ---------- Impressum (statisch, im App-Layout) ---------- */
+function ImpressumPage() {
+  return (
+    <Section title="Impressum">
+      <div className="prose prose-invert max-w-none">
+        {/* TODO: Ersetze die Platzhalter durch deine echten Angaben */}
+        <p><strong>Coach Milo</strong></p>
+        <p>Max Mustermann<br/>Musterstraße 1<br/>12345 Musterstadt</p>
+        <p>E-Mail: kontakt@coachmilo.ai</p>
+        <p>USt-IdNr: DE123456789</p>
+      </div>
+    </Section>
+  );
+}
+
 /* ---------- Admin ---------- */
 function AdminPage() {
   const { session, loading, signInWithPassword } = useAuth();
@@ -455,7 +471,7 @@ function AdminPage() {
         excerpt: p.excerpt ?? "",
         content_html: cleanHtml,
         cover_url: p.cover_url ?? "",
-        tags: p.tags ?? [],
+        tags: p.tags ?? [], // wenn du tags als text umstellst: setze hier einfach p.tags (string)
         author: p.author ?? "",
         published: !!p.published,
         published_at: p.published ? p.published_at || new Date().toISOString() : p.published_at,
@@ -701,15 +717,22 @@ function AdminPage() {
 
                 {/* Tags */}
                 <div>
-                  <label className="text-white/70 text-sm">Tags (Kommagetrennt)</label>
-                  <Input placeholder="hypertrophie, schulter, rehab"
-                         value={(editingPost.tags || []).join(", ")}
-                         onChange={(e) =>
-                           setEditingPost({
-                             ...editingPost,
-                             tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
-                           })
-                         } />
+                  <label className="text-white/70 text-sm">Tags (Kommagetrennt oder 1 Begriff)</label>
+                  <Input
+                    placeholder="z. B. schulter, rehab"
+                    value={
+                      Array.isArray(editingPost.tags)
+                        ? editingPost.tags.join(", ")
+                        : (editingPost.tags || "")
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      // Wenn deine Spalte 'tags' ein TEXT ist, einfach String speichern:
+                      setEditingPost({ ...editingPost, tags: v });
+                      // Wenn deine Spalte 'tags' text[] ist, könntest du hier splitten:
+                      // setEditingPost({ ...editingPost, tags: v.split(",").map(t=>t.trim()).filter(Boolean) });
+                    }}
+                  />
                 </div>
 
                 {/* Inhalt – nur WYSIWYG */}
@@ -737,7 +760,7 @@ function AdminPage() {
                            onChange={(e) => setEditingPost({ ...editingPost, meta_description: e.target.value })} />
                     <Input placeholder="OG Image URL" value={editingPost.meta_image_url || ""}
                            onChange={(e) => setEditingPost({ ...editingPost, meta_image_url: e.target.value })} />
-                    <Input placeholder="Canonical URL" value={editingPost.canonical_url || ""}
+                    <Input placeholder="Canonical URL (z. B. https://coachmilo.ai/…)" value={editingPost.canonical_url || ""}
                            onChange={(e) => setEditingPost({ ...editingPost, canonical_url: e.target.value })} />
                   </div>
                   <label className="inline-flex items-center gap-2 text-sm text-white/80 mt-2">
@@ -980,13 +1003,16 @@ export default function App() {
         {page === "FAQ" && <FAQPage faqs={faqs} />}
         {page === "Admin" && <AdminPage />}
         {page === "Post" && selectedSlug && <PostPage slug={selectedSlug} onBack={() => setPage("Blog")} />}
+        {page === "Impressum" && <ImpressumPage />}
 
         <footer className="border-t border-white/10 mt-10">
           <Container>
             <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-white/50 text-sm">
               <div>© {new Date().getFullYear()} {settings.brand}</div>
               <div className="flex items-center gap-3">
-                {/* Admin-Link weiterhin hier */}
+                <button className="hover:text-white" onClick={() => setPage("Impressum")}>Impressum</button>
+                <a className="hover:text-white" href="/privacy-policy.html" target="_blank" rel="noopener noreferrer">Datenschutz</a>
+                <span>•</span>
                 <a className="hover:text-white" onClick={() => setPage("Admin")}>Admin</a>
                 <span>•</span><span>Ab Oktober 2025</span>
               </div>
