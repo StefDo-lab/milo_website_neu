@@ -377,7 +377,7 @@ function ImpressumPage() {
         <p><strong>Coach Milo</strong></p>
         <p>Aithentica.ai - Stefan Dorfstetter<br/>Pühret 28<br/>4813 Altmünser, Austria</p>
         <p>E-Mail: stefan@aithentica.ai</p>
-        </p>
+        <p>USt-IdNr: </p>
       </div>
     </Section>
   );
