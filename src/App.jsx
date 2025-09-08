@@ -375,9 +375,9 @@ function ImpressumPage() {
       <div className="prose prose-invert max-w-none">
         {/* TODO: Ersetze die Platzhalter durch deine echten Angaben */}
         <p><strong>Coach Milo</strong></p>
-        <p>Max Mustermann<br/>Musterstraße 1<br/>12345 Musterstadt</p>
-        <p>E-Mail: kontakt@coachmilo.ai</p>
-        <p>USt-IdNr: DE123456789</p>
+        <p>Aithentica.ai - Stefan Dorfstetter<br/>Pühret 28<br/>4813 Altmünser, Austria</p>
+        <p>E-Mail: stefan@aithentica.ai</p>
+        </p>
       </div>
     </Section>
   );
