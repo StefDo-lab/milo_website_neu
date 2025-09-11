@@ -955,7 +955,7 @@ function Shell({ settings, onNavigate, active }) {
       <Container>
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#ff9a3e] to-[#ff7a00] p-1 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#ff9a3e] to-[#ff7a00] p-0.5 flex items-center justify-center">
               <img src="/logo-negativ.svg" alt="Coach Milo" className="h-full w-full object-contain" />
             </div>
             <span className="text-white font-semibold">{settings.brand}</span>
