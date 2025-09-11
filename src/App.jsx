@@ -11,6 +11,7 @@ import { supabase } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/auth";
 import PostPage from "./PostPage";
 import RichTextEditor from "./RichTextEditor";
+import { useHead } from "./lib/useHead";
 
 /* ---------- UI ---------- */
 const Container = ({ children }) => (
@@ -954,7 +955,9 @@ function Shell({ settings, onNavigate, active }) {
       <Container>
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <img src="/logo-header.png" alt="Coach Milo" className="h-8 w-8 object-contain" />
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#ff9a3e] to-[#ff7a00] p-1 flex items-center justify-center">
+              <img src="/logo-header.png" alt="Coach Milo" className="h-full w-full object-contain" />
+            </div>
             <span className="text-white font-semibold">{settings.brand}</span>
           </div>
           <nav className="hidden md:flex items-center gap-2">
@@ -1000,24 +1003,77 @@ export default function App() {
     try { document.body.style.margin = "0"; document.body.style.background = "#000"; } catch {}
   }, []);
 
+  // Organization JSON-LD for homepage
+  const { setJsonLd } = useHead();
+  const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  useEffect(() => {
+    try {
+      setJsonLd('ld-org', {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: settings.brand,
+        url: SITE_URL,
+        logo: `${SITE_URL}/apple-touch-icon.png`,
+      });
+    } catch {}
+  }, [settings.brand]);
+
+  // Mini router: sync state <-> URL
+  function navigateTo(p) {
+    setSelectedSlug(null);
+    setPage(p);
+    try {
+      const path = p === 'Home' ? '/' :
+                   p === 'Features' ? '/features' :
+                   p === 'Blog' ? '/blog' :
+                   p === 'FAQ' ? '/faq' :
+                   p === 'Admin' ? '/admin' :
+                   p === 'Impressum' ? '/impressum' : '/';
+      window.history.pushState({}, '', path);
+    } catch {}
+  }
+  function openPost(slug) {
+    setSelectedSlug(slug);
+    setPage('Post');
+    try { window.history.pushState({}, '', `/blog/${encodeURIComponent(slug)}`); } catch {}
+  }
+  function syncFromLocation() {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname || '/';
+    const m = path.match(/^\/blog\/([^\/#?]+)/i);
+    if (m) { setSelectedSlug(decodeURIComponent(m[1])); setPage('Post'); return; }
+    if (path === '/' || path === '') { setPage('Home'); return; }
+    if (path.startsWith('/features')) { setPage('Features'); return; }
+    if (path.startsWith('/blog')) { setPage('Blog'); return; }
+    if (path.startsWith('/faq')) { setPage('FAQ'); return; }
+    if (path.startsWith('/admin')) { setPage('Admin'); return; }
+    if (path.startsWith('/impressum')) { setPage('Impressum'); return; }
+  }
+  useEffect(() => {
+    syncFromLocation();
+    const onPop = () => syncFromLocation();
+    try { window.addEventListener('popstate', onPop); } catch {}
+    return () => { try { window.removeEventListener('popstate', onPop); } catch {} };
+  }, []);
+
   return (
     <AuthProvider>
       <div className="min-h-screen bg-black text-white">
-        <Shell settings={settings} onNavigate={(p) => { setPage(p); if (p !== "Post") setSelectedSlug(null); }} active={page} />
+        <Shell settings={settings} onNavigate={(p) => navigateTo(p)} active={page} />
 
         {page === "Home" && (
           <HomePage settings={settings} features={features} faqs={faqs}
             publishedPosts={publishedPosts}
-            onOpenPost={(slug) => { setSelectedSlug(slug); setPage("Post"); }} />
+            onOpenPost={(slug) => openPost(slug)} />
         )}
         {page === "Features" && <FeaturesPage features={features} />}
         {page === "Blog" && (
           <BlogPage publishedPosts={publishedPosts}
-            onOpen={(slug) => { setSelectedSlug(slug); setPage("Post"); }} />
+            onOpen={(slug) => openPost(slug)} />
         )}
         {page === "FAQ" && <FAQPage faqs={faqs} />}
         {page === "Admin" && <AdminPage />}
-        {page === "Post" && selectedSlug && <PostPage slug={selectedSlug} onBack={() => setPage("Blog")} />}
+        {page === "Post" && selectedSlug && <PostPage slug={selectedSlug} onBack={() => navigateTo("Blog")} />}
         {page === "Impressum" && <ImpressumPage />}
 
         <footer className="border-t border-white/10 mt-10">
@@ -1025,10 +1081,10 @@ export default function App() {
             <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-white/50 text-sm">
               <div>© {new Date().getFullYear()} {settings.brand}</div>
               <div className="flex items-center gap-3">
-                <button className="hover:text-white" onClick={() => setPage("Impressum")}>Impressum</button>
+                <button className="hover:text-white" onClick={() => navigateTo("Impressum")}>Impressum</button>
                 <a className="hover:text-white" href="/privacy-policy.html" target="_blank" rel="noopener noreferrer">Datenschutz</a>
                 <span>•</span>
-                <a className="hover:text-white" onClick={() => setPage("Admin")}>Admin</a>
+                <a className="hover:text-white" onClick={() => navigateTo("Admin")}>Admin</a>
                 <span>•</span><span>Ab Oktober 2025</span>
               </div>
             </div>
