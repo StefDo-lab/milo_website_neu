@@ -113,10 +113,18 @@ export default function PostPage({ slug, onBack }) {
       )}
 
       {post.cover_url && (
-        <div className="mt-6 rounded-xl overflow-hidden border border-white/10 bg-black">
-          <img src={post.cover_url} alt="Cover" className="w-full h-auto object-contain" loading="lazy" />
-        </div>
-      )}
+  <div className="mt-6 rounded-xl overflow-hidden border border-white/10 bg-black">
+    <div className="aspect-[16/9]">
+      <img
+        src={post.cover_url}
+        alt="Cover"
+        loading="lazy"
+        className="w-full h-full object-cover block"
+      />
+    </div>
+  </div>
+)}
+
 
       {post.excerpt && (
         <p className="mt-6 text-white/80 text-lg">{post.excerpt}</p>
