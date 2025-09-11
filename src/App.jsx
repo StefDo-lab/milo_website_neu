@@ -145,27 +145,35 @@ function sanitizeHTML(dirtyHtml) {
 }
 
 /* ---------- Hero ---------- */
+// <- in App.jsx die gesamte HeroImage-Funktion so ersetzen
 function HeroImage({ settings }) {
-  if (settings.heroImageMode === "url" && settings.heroImageUrl) {
-    return (
-      <img src={settings.heroImageUrl} alt="Coach Milo App Preview"
-           className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10" />
-    );
-  }
+  // transparenter 1×1-Placeholder (nicht ändern)
+  const PLACEHOLDER =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+  // Wenn URL schon da, nutzen wir sie; sonst den Placeholder
+  const src = settings.heroImageUrl || PLACEHOLDER;
+
   return (
-    <div className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10 overflow-hidden">
-      <svg viewBox="0 0 1200 600" className="w-full h-auto" role="img" aria-label="Coach Milo Preview">
-        <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stopColor={DEFAULT_SETTINGS.accent} /><stop offset="100%" stopColor="#ff7a00" /></linearGradient></defs>
-        <rect width="1200" height="600" fill="#0a0a0a" />
-        <rect x="60" y="50" width="320" height="500" rx="36" fill="url(#g)" opacity="0.25" />
-        <rect x="500" y="50" width="640" height="500" rx="24" fill="url(#g)" opacity="0.15" />
-        <rect x="520" y="90" width="600" height="60" rx="12" fill="#111827" />
-        <rect x="540" y="105" width="220" height="30" rx="8" fill="#ff9a3e" opacity="0.7" />
-        <rect x="520" y="170" width="600" height="320" rx="12" fill="#111827" />
-      </svg>
-    </div>
+    <img
+      src={src}
+      alt="Coach Milo App Preview"
+      width={1600}
+      height={900}
+      // Hero ist wichtig fürs LCP → nicht lazy
+      loading="eager"
+      decoding="async"
+      fetchPriority="high"
+      // falls du responsive Varianten hast, kannst du srcSet/sizes ergänzen
+      // srcSet={`${src}?w=640 640w, ${src}?w=960 960w, ${src}?w=1280 1280w, ${src}?w=1600 1600w`}
+      // sizes="(max-width: 768px) 95vw, (max-width: 1280px) 80vw, 1200px"
+      className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10"
+      // verhindert „harte“ Umbrüche auf dunklem Hintergrund
+      style={{ backgroundColor: "#0b0b0b" }}
+    />
   );
 }
+
 
 /* ---------- Beta Signup ---------- */
 function BetaForm({ settings }) {
