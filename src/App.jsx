@@ -954,7 +954,7 @@ function Shell({ settings, onNavigate, active }) {
       <Container>
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="Coach Milo" className="h-8 w-8 rounded-xl" />
+            <img src="/logo-header.png" alt="Coach Milo" className="h-8 w-8 object-contain" />
             <span className="text-white font-semibold">{settings.brand}</span>
           </div>
           <nav className="hidden md:flex items-center gap-2">
