@@ -26,7 +26,19 @@
     <meta name="twitter:description" content="Individuelle KI-Trainingspläne, Fortschrittstracking & Feedback – smarter als jede App." />
     <meta name="twitter:image" content="https://coachmilo.ai/preview.jpg" />
 
-
+    <!-- Tailwind CDN MIT Typography-Plugin -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: '#ff9a3e', // dein Orange
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
