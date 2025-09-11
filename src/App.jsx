@@ -954,7 +954,7 @@ function Shell({ settings, onNavigate, active }) {
       <Container>
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl" style={{ background: "linear-gradient(135deg, #ff9a3e, #ff7a00)" }} aria-hidden />
+            <img src="/favicon.svg" alt="Coach Milo" className="h-8 w-8 rounded-xl" />
             <span className="text-white font-semibold">{settings.brand}</span>
           </div>
           <nav className="hidden md:flex items-center gap-2">
