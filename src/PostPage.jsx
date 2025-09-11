@@ -83,7 +83,7 @@ export default function PostPage({ slug, onBack }) {
       publisher: {
         '@type': 'Organization',
         name: 'Coach Milo',
-        logo: { '@type': 'ImageObject', url: `${SITE_URL}/logo.png` },
+        logo: { '@type': 'ImageObject', url: `${SITE_URL}/apple-touch-icon.png` },
       },
     });
   }, [post]);
@@ -113,17 +113,15 @@ export default function PostPage({ slug, onBack }) {
       )}
 
       {post.cover_url && (
-  <div className="mt-6 rounded-xl overflow-hidden border border-white/10 bg-black">
-    <div className="aspect-[16/9]">
-      <img
-        src={post.cover_url}
-        alt="Cover"
-        loading="lazy"
-        className="w-full h-full object-cover block"
-      />
-    </div>
-  </div>
-)}
+        <div className="mt-6 rounded-xl overflow-hidden border border-white/10 bg-black">
+          <img
+            src={post.cover_url}
+            alt="Cover"
+            loading="lazy"
+            className="w-full h-auto object-contain block"
+          />
+        </div>
+      )}
 
 
       {post.excerpt && (
