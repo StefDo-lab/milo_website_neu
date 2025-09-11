@@ -458,6 +458,13 @@ function AdminPage() {
   async function savePost(p) {
     setSavingPost(true);
     try {
+         // --- Tags robust normalisieren (DB: text[]) ---
+const normTags = Array.isArray(p.tags)
+      ? p.tags
+      : (p.tags ?? "")
+          .split(",")
+          .map(s => s.trim())
+          .filter(Boolean);
       // 1) Guard: keine Data-URI Bilder
       if ((p.content_html || "").includes('src="data:')) {
         throw new Error("Bitte keine eingebetteten Data-URI-Bilder einfügen. Lade Bilder über den 🖼️-Button hoch.");
@@ -471,7 +478,7 @@ function AdminPage() {
         excerpt: p.excerpt ?? "",
         content_html: cleanHtml,
         cover_url: p.cover_url ?? "",
-        tags: p.tags ?? [], // wenn du tags als text umstellst: setze hier einfach p.tags (string)
+        tags: normTags,     // DB erwartet text[] → immer Array schicken
         author: p.author ?? "",
         published: !!p.published,
         published_at: p.published ? p.published_at || new Date().toISOString() : p.published_at,
