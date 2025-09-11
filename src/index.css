@@ -5,7 +5,7 @@
 @plugin "@tailwindcss/typography";
 
 /* Sourcen für den Scan (ersetzt content:[] aus v3) */
-@source "./index.html";
+@source "../index.html";
 @source "./src/**/*.{js,jsx,ts,tsx}";
 
 /* Optionales Theme – dein Brand-Orange */
