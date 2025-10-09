@@ -44,12 +44,43 @@ const Card = ({ children }) => (
   </div>
 );
 
+const ASPECT_CLASS_MAP = {
+  "16:9": "aspect-video",
+  "16/9": "aspect-video",
+  landscape: "aspect-video",
+  "9:16": "aspect-[9/16]",
+  "9/16": "aspect-[9/16]",
+  hochformat: "aspect-[9/16]",
+  "4:5": "aspect-[4/5]",
+  "4/5": "aspect-[4/5]",
+  story: "aspect-[4/5]",
+  "1:1": "aspect-square",
+  "1/1": "aspect-square",
+  square: "aspect-square",
+};
+const DEFAULT_ASPECT_CLASS = ASPECT_CLASS_MAP["16:9"];
+
+function getAspectClass(ratio) {
+  if (!ratio) return DEFAULT_ASPECT_CLASS;
+  const key = ratio.toString().trim().toLowerCase();
+  return ASPECT_CLASS_MAP[key] || DEFAULT_ASPECT_CLASS;
+}
+
+function guessVideoMime(url) {
+  if (!url) return "video/mp4";
+  const clean = url.split("?")[0]?.toLowerCase() || "";
+  if (clean.endsWith(".webm")) return "video/webm";
+  if (clean.endsWith(".ogv") || clean.endsWith(".ogg")) return "video/ogg";
+  if (clean.endsWith(".mov")) return "video/quicktime";
+  return "video/mp4";
+}
+
 const MediaPlayer = ({ settings }) => {
   const videoUrl = typeof settings?.teaserVideoUrl === "string" ? settings.teaserVideoUrl.trim() : "";
   const posterUrl =
     typeof settings?.teaserVideoPosterUrl === "string" && settings.teaserVideoPosterUrl.trim().length
       ? settings.teaserVideoPosterUrl.trim()
-      : DEFAULT_SETTINGS.teaserVideoPosterUrl;
+      : settings?.teaserVideoPosterFallback;
   const aspectClass = getAspectClass(settings?.teaserVideoRatio);
   const hasVideo = Boolean(videoUrl);
   const videoMime = guessVideoMime(videoUrl);
@@ -91,6 +122,23 @@ const MediaPlayer = ({ settings }) => {
       </div>
     </Card>
   );
+};
+
+const mergeSettingsRow = (row) => ({
+  ...SETTINGS_ROW_DEFAULTS,
+  ...(row || {}),
+  id: row?.id ?? SETTINGS_ROW_DEFAULTS.id,
+});
+
+const toStoragePath = (prefix, fileName) => {
+  const clean = (fileName || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .toLowerCase();
+  return `${prefix}/${Date.now()}-${clean || "upload"}`;
 };
 
 const Button = ({ children, onClick, variant = "primary", type = "button", className = "" }) => {
@@ -138,7 +186,8 @@ const DEFAULT_SETTINGS = {
   heroImageMode: "inline",
   heroImageUrl: "",
   teaserVideoUrl: "",
-  teaserVideoPosterUrl: "/preview.jpg",
+  teaserVideoPosterUrl: "",
+  teaserVideoPosterFallback: "/preview.jpg",
   teaserVideoRatio: "16:9",
 };
 const SETTINGS_ROW_DEFAULTS = {
@@ -149,55 +198,6 @@ const SETTINGS_ROW_DEFAULTS = {
   teaser_video_poster_url: "",
   teaser_video_ratio: "16:9",
 };
-
-const ASPECT_CLASS_MAP = {
-  "16:9": "aspect-video",
-  "16/9": "aspect-video",
-  "landscape": "aspect-video",
-  "9:16": "aspect-[9/16]",
-  "9/16": "aspect-[9/16]",
-  "hochformat": "aspect-[9/16]",
-  "4:5": "aspect-[4/5]",
-  "4/5": "aspect-[4/5]",
-  "story": "aspect-[4/5]",
-  "1:1": "aspect-square",
-  "1/1": "aspect-square",
-  "square": "aspect-square",
-};
-const DEFAULT_ASPECT_CLASS = ASPECT_CLASS_MAP["16:9"];
-
-function getAspectClass(ratio) {
-  if (!ratio) return DEFAULT_ASPECT_CLASS;
-  const key = ratio.toString().trim().toLowerCase();
-  return ASPECT_CLASS_MAP[key] || DEFAULT_ASPECT_CLASS;
-}
-
-function guessVideoMime(url) {
-  if (!url) return "video/mp4";
-  const clean = url.split("?")[0]?.toLowerCase() || "";
-  if (clean.endsWith(".webm")) return "video/webm";
-  if (clean.endsWith(".ogv") || clean.endsWith(".ogg")) return "video/ogg";
-  if (clean.endsWith(".mov")) return "video/quicktime";
-  return "video/mp4";
-}
-
-const mergeSettingsRow = (row) => ({
-  ...SETTINGS_ROW_DEFAULTS,
-  ...(row || {}),
-  id: row?.id ?? SETTINGS_ROW_DEFAULTS.id,
-});
-
-const toStoragePath = (prefix, fileName) => {
-  const clean = (fileName || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "")
-    .toLowerCase();
-  return `${prefix}/${Date.now()}-${clean || "upload"}`;
-};
-
 const DEFAULT_FEATURES = [
   { id: "f1", title: "Individuelle Trainingspläne", body: "Milo baut deinen Plan aus Zielen, Equipment und Zeit. Passt Sätze/Wdh. automatisch an.", icon: "💪" },
   { id: "f2", title: "Fortschritts-Tracking", body: "Tracke Workouts schnell. Milo erkennt Plateaus und empfiehlt passende Methoden.", icon: "📈" },
@@ -369,17 +369,16 @@ function useSettings(defaults) {
         console.warn("[CMS] Einstellungen konnten nicht geladen werden", err);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => (alive = false);
   }, [defaults.heroImageMode, defaults.heroImageUrl, defaults.teaserVideoRatio]);
   return {
     ...defaults,
     heroImageMode: state.heroImageMode,
     heroImageUrl: state.heroImageUrl,
     teaserVideoUrl: state.teaserVideoUrl,
-    teaserVideoPosterUrl: state.teaserVideoPosterUrl || defaults.teaserVideoPosterUrl,
+    teaserVideoPosterUrl: state.teaserVideoPosterUrl,
     teaserVideoRatio: state.teaserVideoRatio,
+    teaserVideoPosterFallback: defaults.teaserVideoPosterFallback,
   };
 }
 function useFeatures(defaults) {
@@ -762,7 +761,7 @@ const normTags = Array.isArray(p.tags)
     if (!error) { setFaqs(faqs.filter((x) => x.id !== id)); if (editingFaq?.id === id) setEditingFaq(null); }
   }
 
-  /* SETTINGS (Hero + Media) */
+  /* SETTINGS (Hero) */
   const [settingsRow, setSettingsRow] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingTeaserVideo, setUploadingTeaserVideo] = useState(false);
@@ -816,11 +815,15 @@ const normTags = Array.isArray(p.tags)
       setSettingsRow((prev) => mergeSettingsRow({ ...(prev || {}), hero_image_url: url }));
     } catch (e) { alert(e.message); }
   }
+
   async function uploadTeaserVideo(file) {
     if (!file) return;
     setUploadingTeaserVideo(true);
     try {
       const path = toStoragePath("media", file.name);
+      if (!MEDIA_UPLOAD_BUCKETS.length) {
+        throw new Error("Kein Storage-Bucket konfiguriert.");
+      }
       let uploadError = null;
       for (const bucket of MEDIA_UPLOAD_BUCKETS) {
         const { error: upErr } = await supabase.storage
@@ -856,6 +859,7 @@ const normTags = Array.isArray(p.tags)
       setUploadingTeaserVideo(false);
     }
   }
+
   async function uploadTeaserPoster(file) {
     if (!file) return;
     setUploadingTeaserPoster(true);
@@ -1127,220 +1131,153 @@ const normTags = Array.isArray(p.tags)
 
       {tab === "Einstellungen" && (
         <div className="grid md:grid-cols-2 gap-4">
-          <Card>
-            <h3 className="text-white font-medium mb-2">Hero Bild</h3>
-            {!settingsRow ? (
-              <p className="text-white/60 text-sm">Lade Einstellungen…</p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-white/50 text-sm leading-relaxed">
-                  Hero-Visuals liegen in <code>cms_settings</code>. Lege dort (neben den bestehenden Spalten) optional{" "}
-                  <code>hero_image_mode</code> und <code>hero_image_url</code> an.
-                </p>
-                <div>
-                  <label className="text-white/70 text-sm">Modus</label>
-                  <Select
-                    value={settingsRow.hero_image_mode || "url"}
-                    onChange={(e) =>
-                      setSettingsRow((prev) =>
-                        mergeSettingsRow({ ...(prev || {}), hero_image_mode: e.target.value })
-                      )
-                    }
-                  >
-                    <option value="url">URL</option>
-                    <option value="inline">Inline (SVG)</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm">Bild-URL (öffentlich)</label>
-                  <Input
-                    placeholder="https://…"
-                    value={settingsRow.hero_image_url || ""}
-                    onChange={(e) =>
-                      setSettingsRow((prev) =>
-                        mergeSettingsRow({ ...(prev || {}), hero_image_url: e.target.value })
-                      )
-                    }
-                  />
-                  <div className="mt-2">
-                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
-                      Upload
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={(e) => {
-                          uploadHero(e.target.files?.[0]);
-                          if (e.target) e.target.value = "";
-                        }}
-                      />
-                    </label>
+          <div className="space-y-4">
+            <Card>
+              <h3 className="text-white font-medium mb-2">Hero</h3>
+              {!settingsRow ? (
+                <p className="text-white/60 text-sm">Lade Einstellungen…</p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-white/70 text-sm">Modus</label>
+                    <Select value={settingsRow.hero_image_mode || "url"}
+                            onChange={(e) => setSettingsRow({ ...settingsRow, hero_image_mode: e.target.value })}>
+                      <option value="url">URL</option>
+                      <option value="inline">Inline (SVG)</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-white/70 text-sm">Bild-URL (öffentlich)</label>
+                    <Input placeholder="https://…" value={settingsRow.hero_image_url || ""}
+                           onChange={(e) => setSettingsRow({ ...settingsRow, hero_image_url: e.target.value })} />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
+                        Upload
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => uploadHero(e.target.files?.[0])} />
+                      </label>
+                      <span className="text-white/50 text-xs">Speicherort: „{STORAGE_BUCKET_IMAGES}“</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button onClick={() => saveSettings(settingsRow)}>{savingSettings ? "Speichern…" : "Speichern"}</Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button onClick={() => saveSettings(settingsRow)}>
-                    {savingSettings ? "Speichern…" : "Speichern (Hero & Video)"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
+              )}
+            </Card>
 
-          <Card>
-            <h3 className="text-white font-medium mb-2">Hero Vorschau</h3>
-            {settingsRow?.hero_image_mode === "url" && settingsRow?.hero_image_url ? (
-              <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
-                <img src={settingsRow.hero_image_url} alt="Hero Preview" className="w-full h-auto object-contain" />
-              </div>
-            ) : (
-              <p className="text-white/60 text-sm">Aktuell „Inline“ – es wird die eingebaute SVG verwendet.</p>
-            )}
-          </Card>
-
-          <Card>
-            <h3 className="text-white font-medium mb-2">Teaser Video (Supabase)</h3>
-            {!settingsRow ? (
-              <p className="text-white/60 text-sm">Lade Einstellungen…</p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-white/60 text-sm leading-relaxed">
-                  So richtest du das Video ein:
-                </p>
-                <ul className="list-disc list-inside text-white/50 text-xs space-y-1 leading-relaxed">
-                  <li>
-                    Nutze in Supabase Storage einen öffentlichen Bucket <code>{STORAGE_BUCKET_MEDIA}</code>
-                    {STORAGE_BUCKET_IMAGES ? (
-                      <>
-                        {" "}(oder den bestehenden <code>{STORAGE_BUCKET_IMAGES}</code>-Bucket).
-                      </>
-                    ) : null} Falls keiner existiert, lege ihn kurz im Storage-Bereich an.
-                  </li>
-                  <li>
-                    Stelle sicher, dass <code>cms_settings</code> die Spalten <code>teaser_video_url</code>,{" "}
-                    <code>teaser_video_poster_url</code> und <code>teaser_video_ratio</code> besitzt.
-                  </li>
-                  <li>
-                    Lade Dateien entweder per Upload unten oder direkt im Supabase UI hoch und füge hier die URL ein.
-                  </li>
-                </ul>
-                <div>
-                  <label className="text-white/70 text-sm">Video-URL (öffentlich)</label>
-                  <Input
-                    placeholder="https://..."
-                    value={settingsRow.teaser_video_url || ""}
-                    onChange={(e) =>
-                      setSettingsRow((prev) =>
-                        mergeSettingsRow({ ...(prev || {}), teaser_video_url: e.target.value })
-                      )
-                    }
-                  />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <label
-                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer ${
-                        uploadingTeaserVideo ? "opacity-60 pointer-events-none" : ""
-                      }`}
-                    >
-                      {uploadingTeaserVideo ? "Lädt…" : "Video hochladen"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
-                        disabled={uploadingTeaserVideo}
-                        onChange={(e) => {
-                          uploadTeaserVideo(e.target.files?.[0]);
-                          if (e.target) e.target.value = "";
-                        }}
-                      />
-                    </label>
-                    <label
-                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer ${
-                        uploadingTeaserPoster ? "opacity-60 pointer-events-none" : ""
-                      }`}
-                    >
-                      {uploadingTeaserPoster ? "Lädt…" : "Poster hochladen"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        disabled={uploadingTeaserPoster}
-                        onChange={(e) => {
-                          uploadTeaserPoster(e.target.files?.[0]);
-                          if (e.target) e.target.value = "";
-                        }}
-                      />
-                    </label>
+            <Card>
+              <h3 className="text-white font-medium mb-2">Teaser-Video</h3>
+              {!settingsRow ? (
+                <p className="text-white/60 text-sm">Lade Einstellungen…</p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-white/70 text-sm">Video-URL</label>
+                    <Input
+                      placeholder="https://…"
+                      value={settingsRow.teaser_video_url || ""}
+                      onChange={(e) => setSettingsRow({ ...settingsRow, teaser_video_url: e.target.value })}
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
+                        Video hochladen
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                          onChange={(e) => uploadTeaserVideo(e.target.files?.[0])}
+                        />
+                      </label>
+                      <span className="text-white/50 text-xs">
+                        Upload nach {formatBucketChoices(MEDIA_UPLOAD_BUCKETS) || "Supabase Storage"}
+                      </span>
+                    </div>
+                    {uploadingTeaserVideo && <p className="text-white/60 text-xs">Lade Video hoch…</p>}
                   </div>
-                    <p className="text-[11px] text-white/40 leading-relaxed mt-1">
-                      Tipp: Nutze MP4 (H.264) für maximale Browser-Kompatibilität. Das Poster landet im Bucket{" "}
-                      <code>{STORAGE_BUCKET_IMAGES}</code>.
+                  <div>
+                    <label className="text-white/70 text-sm">Poster-Bild</label>
+                    <Input
+                      placeholder="https://…"
+                      value={settingsRow.teaser_video_poster_url || ""}
+                      onChange={(e) => setSettingsRow({ ...settingsRow, teaser_video_poster_url: e.target.value })}
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
+                        Poster hochladen
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => uploadTeaserPoster(e.target.files?.[0])}
+                        />
+                      </label>
+                      <span className="text-white/50 text-xs">Bucket „{STORAGE_BUCKET_IMAGES}“</span>
+                    </div>
+                    {uploadingTeaserPoster && <p className="text-white/60 text-xs">Lade Poster hoch…</p>}
+                  </div>
+                  <div>
+                    <label className="text-white/70 text-sm">Format</label>
+                    <Select
+                      value={settingsRow.teaser_video_ratio || "16:9"}
+                      onChange={(e) => setSettingsRow({ ...settingsRow, teaser_video_ratio: e.target.value })}
+                    >
+                      <option value="16:9">16:9 (Landscape)</option>
+                      <option value="4:5">4:5 (Story)</option>
+                      <option value="1:1">1:1 (Quadrat)</option>
+                      <option value="9:16">9:16 (Hochformat)</option>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button onClick={() => saveSettings(settingsRow)}>{savingSettings ? "Speichern…" : "Speichern"}</Button>
+                    <p className="text-white/50 text-xs">
+                      Video-Dateien werden automatisch in Supabase veröffentlicht.
                     </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-white/70 text-sm">Poster-URL (optional)</label>
-                  <Input
-                    placeholder="https://.../preview.jpg"
-                    value={settingsRow.teaser_video_poster_url || ""}
-                    onChange={(e) =>
-                      setSettingsRow((prev) =>
-                        mergeSettingsRow({ ...(prev || {}), teaser_video_poster_url: e.target.value })
-                      )
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-white/70 text-sm">Format</label>
-                  <Select
-                    value={settingsRow.teaser_video_ratio || SETTINGS_ROW_DEFAULTS.teaser_video_ratio}
-                    onChange={(e) =>
-                      setSettingsRow((prev) =>
-                        mergeSettingsRow({ ...(prev || {}), teaser_video_ratio: e.target.value })
-                      )
-                    }
-                  >
-                    <option value="16:9">16:9 – Querformat</option>
-                    <option value="9:16">9:16 – Hochformat</option>
-                    <option value="4:5">4:5 – Story / Reel</option>
-                    <option value="1:1">1:1 – Quadrat</option>
-                  </Select>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Button onClick={() => saveSettings(settingsRow)}>
-                    {savingSettings ? "Speichern…" : "Speichern (Hero & Video)"}
-                  </Button>
-                  <p className="text-white/40 text-xs leading-relaxed">
-                    Der Button speichert alle Felder in <code>cms_settings</code> (inkl. Hero-Bereich).
-                  </p>
-                </div>
-              </div>
-            )}
-          </Card>
+              )}
+            </Card>
+          </div>
 
-          <Card>
-            <h3 className="text-white font-medium mb-2">Teaser Vorschau</h3>
-            {settingsRow?.teaser_video_url ? (
-              <div
-                className={`relative w-full overflow-hidden rounded-xl border border-white/10 bg-black ${getAspectClass(
-                  settingsRow?.teaser_video_ratio
-                )}`}
-              >
-                <video
-                  controls
-                  preload="metadata"
-                  playsInline
-                  poster={
-                    settingsRow?.teaser_video_poster_url || DEFAULT_SETTINGS.teaserVideoPosterUrl || undefined
-                  }
-                  className="h-full w-full object-cover"
-                  controlsList="nodownload noremoteplayback"
-                >
-                  <source src={settingsRow.teaser_video_url} type={guessVideoMime(settingsRow.teaser_video_url)} />
-                  Vorschau kann nicht geladen werden.
-                </video>
-              </div>
-            ) : (
-              <p className="text-white/60 text-sm">Noch kein Video hinterlegt.</p>
-            )}
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <h3 className="text-white font-medium mb-2">Hero Vorschau</h3>
+              {settingsRow?.hero_image_mode === "url" && settingsRow?.hero_image_url ? (
+                <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
+                  <img src={settingsRow.hero_image_url} alt="Hero Preview" className="w-full h-auto object-contain" />
+                </div>
+              ) : (
+                <p className="text-white/60 text-sm">Aktuell „Inline“ – es wird die eingebaute SVG verwendet.</p>
+              )}
+            </Card>
+
+            <Card>
+              <h3 className="text-white font-medium mb-2">Teaser Vorschau</h3>
+              <MediaPlayer
+                settings={{
+                  teaserVideoUrl: settingsRow?.teaser_video_url || "",
+                  teaserVideoPosterUrl: settingsRow?.teaser_video_poster_url || "",
+                  teaserVideoRatio: settingsRow?.teaser_video_ratio || SETTINGS_ROW_DEFAULTS.teaser_video_ratio,
+                  teaserVideoPosterFallback: DEFAULT_SETTINGS.teaserVideoPosterFallback,
+                }}
+              />
+              {!settingsRow?.teaser_video_url && (
+                <p className="text-white/50 text-xs mt-3">
+                  Lade ein Video hoch oder füge eine URL ein, damit der Teaser sichtbar wird.
+                </p>
+              )}
+            </Card>
+
+            <Card>
+              <h3 className="text-white font-medium mb-2">Hinweise zu Supabase Storage</h3>
+              <ul className="list-disc list-inside text-white/60 text-xs space-y-1">
+                <li>Videos können im Bucket „{STORAGE_BUCKET_MEDIA}“ oder ersatzweise in „{STORAGE_BUCKET_IMAGES}“ liegen.</li>
+                <li>
+                  Falls ein Bucket fehlt, lege ihn im Supabase Dashboard unter <em>Storage</em> an und erlaube öffentliche Lesezugriffe.
+                </li>
+                <li>Poster-Bilder gehören immer in „{STORAGE_BUCKET_IMAGES}“.</li>
+              </ul>
+            </Card>
+          </div>
         </div>
       )}
     </Section>
