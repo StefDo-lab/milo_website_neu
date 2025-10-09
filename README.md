@@ -1,12 +1,21 @@
-# React + Vite
+# Coach Milo Website
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Diese Vite-React-App dient als Landingpage für Coach Milo. Nach dem Checkout kannst du lokal entwickeln:
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm run dev
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Media Player anpassen
 
-## Expanding the ESLint configuration
+Der Abschnitt **„Warum Coach Milo?“** enthält nun einen Media Player, der auf Desktop rechts neben den Cards und mobil darunter erscheint. Um das Video zu ersetzen, lege deine Datei (z. B. `app-preview.mp4`) im Ordner `public/media/` ab und passe die `src`-URL in `src/App.jsx` an.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Deploy-Hinweise
+
+- Vercel-Builds starten nur für Pull Requests bzw. für Commits mit verknüpfter GitHub-E-Mail.
+- Falls das automatische Deployment blockiert wird, erstelle einen PR von deinem Feature-Branch auf `master`.
+
+## Weiterführend
+
+Nutze bei Bedarf zusätzliches Tooling (z. B. TypeScript mit [`typescript-eslint`](https://typescript-eslint.io)) oder ergänze weitere Landingpage-Sektionen.
