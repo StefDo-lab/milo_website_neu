@@ -36,6 +36,34 @@ const Card = ({ children }) => (
     {children}
   </div>
 );
+
+const MediaPlayer = () => (
+  <Card>
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-white font-medium">Coach Milo in Aktion</h3>
+        <p className="text-white/70 text-sm">
+          Ein kurzer Einblick in das Erlebnis mit deinem KI-Coach.
+        </p>
+      </div>
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
+        <video
+          controls
+          preload="metadata"
+          poster="/preview.jpg"
+          className="h-full w-full object-cover"
+        >
+          <source src="/media/coach-milo-teaser.mp4" type="video/mp4" />
+          Dein Browser unterstützt das Abspielen dieses Videos nicht.
+        </video>
+      </div>
+      <p className="text-white/50 text-xs">
+        Ersetze das Video durch dein finales Demo- oder App-Walkthrough.
+      </p>
+    </div>
+  </Card>
+);
+
 const Button = ({ children, onClick, variant = "primary", type = "button", className = "" }) => {
   const base = "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none focus:ring-2";
   const st =
@@ -273,9 +301,12 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
       </section>
 
       <Section title="Warum Coach Milo?">
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card><h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3><p className="text-white/70 text-sm">Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.</p></Card>
-          <Card><h3 className="text-white font-medium mb-2">Mit dir besser werden</h3><p className="text-white/70 text-sm">Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.</p></Card>
+        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card><h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3><p className="text-white/70 text-sm">Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.</p></Card>
+            <Card><h3 className="text-white font-medium mb-2">Mit dir besser werden</h3><p className="text-white/70 text-sm">Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.</p></Card>
+          </div>
+          <MediaPlayer />
         </div>
       </Section>
 
