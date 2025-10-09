@@ -81,25 +81,12 @@ const MediaPlayer = ({ settings }) => {
             </video>
           ) : (
             <div className="flex h-full w-full items-center justify-center px-6 text-center">
-              <p className="text-white/50 text-sm leading-relaxed">
-                Lade dein Teaser-Video im Admin unter <strong>Einstellungen → Teaser Video</strong> hoch. Das Hosting erfolgt
-                im Supabase Storage-Bucket <code>{STORAGE_BUCKET_MEDIA}</code>
-                {STORAGE_BUCKET_IMAGES ? (
-                  <>
-                    {" "}(oder nutze den vorhandenen <code>{STORAGE_BUCKET_IMAGES}</code>-Bucket).
-                  </>
-                ) : null}
-              </p>
+              <p className="text-white/50 text-sm leading-relaxed">Derzeit steht kein Teaser-Video zur Verfügung.</p>
             </div>
           )}
         </div>
         <div className="space-y-1" id="media-player-description">
-          <p className="text-white/50 text-xs">Verwalte Video, Poster &amp; Seitenverhältnis direkt im CMS.</p>
-          <p className="text-white/40 text-[11px] leading-relaxed">
-            Öffne den Admin-Bereich → <strong>Einstellungen</strong> → <strong>Teaser Video</strong>. Dort kannst du die
-            Datei nach Supabase hochladen, ein Vorschaubild setzen und zwischen 16:9, 9:16 oder anderen Formaten
-            wechseln.
-          </p>
+          <p className="text-white/50 text-xs">Sobald das Teaser-Video verfügbar ist, wird es hier abgespielt.</p>
         </div>
       </div>
     </Card>
