@@ -175,13 +175,33 @@ function sanitizeHTML(dirtyHtml) {
 
 /* ---------- Hero ---------- */
 // <- in App.jsx die gesamte HeroImage-Funktion so ersetzen
-function HeroImage({ settings }) {
+function HeroMedia({ settings }) {
   // transparenter 1×1-Placeholder (nicht ändern)
   const PLACEHOLDER =
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
   // Wenn URL schon da, nutzen wir sie; sonst den Placeholder
   const src = settings.heroImageUrl || PLACEHOLDER;
+  const isVideo =
+    settings.heroImageMode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(src);
+
+  if (isVideo && src !== PLACEHOLDER) {
+    return (
+      <video
+        src={src}
+        width={1600}
+        height={900}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        // Wichtig für LCP: früh laden
+        style={{ backgroundColor: "#0b0b0b" }}
+        className="mx-auto max-w-3xl w-full rounded-2xl shadow-lg border border-white/10"
+      />
+    );
+  }
 
   return (
     <img
@@ -257,6 +277,7 @@ function useSettings(defaults) {
     return () => (alive = false);
   }, []);
   return { ...DEFAULT_SETTINGS, heroImageMode: state.heroImageMode, heroImageUrl: state.heroImageUrl };
+
 }
 function useFeatures(defaults) {
   const [state, setState] = useState({ data: [], loading: true });
@@ -296,7 +317,7 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
           <div className="mb-6"><Badge>{settings.releaseBanner}</Badge></div>
           <h1 className="text-3xl md:text-5xl font-semibold text-white max-w-3xl leading-tight">{settings.heroTitle}</h1>
           <p className="text-white/70 mt-3 max-w-2xl">{settings.heroSubtitle}</p>
-          <div className="mt-8"><HeroImage settings={settings} /></div>
+          <div className="mt-8"><HeroMedia settings={settings} /></div>
         </Container>
       </section>
 
@@ -940,18 +961,19 @@ const normTags = Array.isArray(p.tags)
                   <label className="text-white/70 text-sm">Modus</label>
                   <Select value={settingsRow.hero_image_mode || "url"}
                           onChange={(e) => setSettingsRow({ ...settingsRow, hero_image_mode: e.target.value })}>
-                    <option value="url">URL</option>
+                    <option value="url">URL (Bild)</option>
+                    <option value="video">Video</option>
                     <option value="inline">Inline (SVG)</option>
                   </Select>
                 </div>
                 <div>
-                  <label className="text-white/70 text-sm">Bild-URL (öffentlich)</label>
+                  <label className="text-white/70 text-sm">Bild-/Video-URL (öffentlich)</label>
                   <Input placeholder="https://…" value={settingsRow.hero_image_url || ""}
                          onChange={(e) => setSettingsRow({ ...settingsRow, hero_image_url: e.target.value })} />
                   <div className="mt-2">
                     <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/10 cursor-pointer">
                       Upload
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => uploadHero(e.target.files?.[0])} />
+                      <input type="file" className="hidden" accept="image/*,video/*" onChange={(e) => uploadHero(e.target.files?.[0])} />
                     </label>
                   </div>
                 </div>
@@ -964,7 +986,11 @@ const normTags = Array.isArray(p.tags)
 
           <Card>
             <h3 className="text-white font-medium mb-2">Vorschau</h3>
-            {settingsRow?.hero_image_mode === "url" && settingsRow?.hero_image_url ? (
+            {(settingsRow?.hero_image_mode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(settingsRow?.hero_image_url || "")) && settingsRow?.hero_image_url ? (
+              <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
+                <video src={settingsRow.hero_image_url} className="w-full h-auto" autoPlay muted loop playsInline preload="metadata" />
+              </div>
+            ) : settingsRow?.hero_image_mode === "url" && settingsRow?.hero_image_url ? (
               <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
                 <img src={settingsRow.hero_image_url} alt="Hero Preview" className="w-full h-auto object-contain" />
               </div>
