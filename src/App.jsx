@@ -47,18 +47,17 @@ const MediaPlayer = () => (
         </p>
       </div>
       <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
-        <video
-          controls
-          preload="metadata"
-          poster="/preview.jpg"
+        {/* Statt Video eine statische Vorschau anzeigen, um unbeabsichtigte Videos auf der Startseite zu vermeiden. */}
+        <img
+          src="/preview.jpg"
+          alt="Coach Milo Vorschau"
           className="h-full w-full object-cover"
-        >
-          <source src="/media/coach-milo-teaser.mp4" type="video/mp4" />
-          Dein Browser unterstützt das Abspielen dieses Videos nicht.
-        </video>
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <p className="text-white/50 text-xs">
-        Ersetze das Video durch dein finales Demo- oder App-Walkthrough.
+        Ersetze diese Vorschau durch dein finales Demo‑Video oder App‑Walkthrough.
       </p>
     </div>
   </Card>
@@ -175,7 +174,7 @@ function sanitizeHTML(dirtyHtml) {
 
 /* ---------- Hero ---------- */
 // <- in App.jsx die gesamte HeroImage-Funktion so ersetzen
-function HeroMedia({ settings }) {
+function HeroMedia({ settings, allowVideo = true }) {
   // transparenter 1×1-Placeholder (nicht ändern)
   const PLACEHOLDER =
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
@@ -183,7 +182,7 @@ function HeroMedia({ settings }) {
   // Wenn URL schon da, nutzen wir sie; sonst den Placeholder
   const src = settings.heroImageUrl || PLACEHOLDER;
   const isVideo =
-    settings.heroImageMode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(src);
+    allowVideo && (settings.heroImageMode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(src));
 
   if (isVideo && src !== PLACEHOLDER) {
     return (
@@ -317,7 +316,7 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
           <div className="mb-6"><Badge>{settings.releaseBanner}</Badge></div>
           <h1 className="text-3xl md:text-5xl font-semibold text-white max-w-3xl leading-tight">{settings.heroTitle}</h1>
           <p className="text-white/70 mt-3 max-w-2xl">{settings.heroSubtitle}</p>
-          <div className="mt-8"><HeroMedia settings={settings} /></div>
+          <div className="mt-8"><HeroMedia settings={settings} allowVideo /></div>
         </Container>
       </section>
 
@@ -327,6 +326,7 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
             <Card><h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3><p className="text-white/70 text-sm">Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.</p></Card>
             <Card><h3 className="text-white font-medium mb-2">Mit dir besser werden</h3><p className="text-white/70 text-sm">Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.</p></Card>
           </div>
+          {/* Kachel: bewusst kein Video, damit der Hero-Status das Layout nicht beeinflusst */}
           <MediaPlayer />
         </div>
       </Section>
