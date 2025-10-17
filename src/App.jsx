@@ -49,7 +49,7 @@ const MediaPlayer = () => (
       <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
         {/* Statt Video eine statische Vorschau anzeigen, um unbeabsichtigte Videos auf der Startseite zu vermeiden. */}
         <img
-          src="/preview.jpg"
+          src="/preview.png"
           alt="Coach Milo Vorschau"
           className="h-full w-full object-cover"
           loading="lazy"
