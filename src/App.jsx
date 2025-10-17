@@ -37,31 +37,6 @@ const Card = ({ children }) => (
   </div>
 );
 
-const MediaPlayer = () => (
-  <Card>
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-white font-medium">Coach Milo in Aktion</h3>
-        <p className="text-white/70 text-sm">
-          Ein kurzer Einblick in das Erlebnis mit deinem KI-Coach.
-        </p>
-      </div>
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
-        {/* Statt Video eine statische Vorschau anzeigen, um unbeabsichtigte Videos auf der Startseite zu vermeiden. */}
-        <img
-          src="/preview.png"
-          alt="Coach Milo Vorschau"
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
-      <p className="text-white/50 text-xs">
-        Ersetze diese Vorschau durch dein finales Demo‑Video oder App‑Walkthrough.
-      </p>
-    </div>
-  </Card>
-);
 
 const Button = ({ children, onClick, variant = "primary", type = "button", className = "" }) => {
   const base = "inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm transition outline-none focus:ring-2";
@@ -181,8 +156,7 @@ function HeroMedia({ settings, allowVideo = true }) {
 
   // Wenn URL schon da, nutzen wir sie; sonst den Placeholder
   const src = settings.heroImageUrl || PLACEHOLDER;
-  const isVideo =
-    allowVideo && (settings.heroImageMode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(src));
+  const isVideo = allowVideo && (settings.heroImageMode === "video" || /\.(mp4|webm|ogg)(\?.*)?$/i.test(src));
 
   if (isVideo && src !== PLACEHOLDER) {
     return (
@@ -269,7 +243,7 @@ function useSettings(defaults) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { data } = await supabase.from("cms_settings").select("hero_image_mode, hero_image_url").eq("id", 1).single();
+      const { data } = await supabase.from("cms_settings").select("hero_image_mode, hero_image_url").eq("id", 1).maybeSingle();
       if (!alive) return;
       if (data) setState({ heroImageMode: data.hero_image_mode || "inline", heroImageUrl: data.hero_image_url || "" });
     })();
@@ -321,13 +295,9 @@ function HomePage({ settings, features, faqs, publishedPosts, onOpenPost }) {
       </section>
 
       <Section title="Warum Coach Milo?">
-        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card><h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3><p className="text-white/70 text-sm">Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.</p></Card>
-            <Card><h3 className="text-white font-medium mb-2">Mit dir besser werden</h3><p className="text-white/70 text-sm">Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.</p></Card>
-          </div>
-          {/* Kachel: bewusst kein Video, damit der Hero-Status das Layout nicht beeinflusst */}
-          <MediaPlayer />
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card><h3 className="text-white font-medium mb-2">Pläne, die zu dir passen</h3><p className="text-white/70 text-sm">Milo berücksichtigt deine Ziele, dein Equipment und deinen Alltag. Jede Einheit ist auf dich zugeschnitten.</p></Card>
+          <Card><h3 className="text-white font-medium mb-2">Mit dir besser werden</h3><p className="text-white/70 text-sm">Deine Fortschritte fließen direkt in den Plan ein. So bleibst du motiviert – ohne Stagnation.</p></Card>
         </div>
       </Section>
 
@@ -665,7 +635,7 @@ const normTags = Array.isArray(p.tags)
   useEffect(() => {
     if (!session) return;
     (async () => {
-      const { data } = await supabase.from("cms_settings").select("*").eq("id", 1).single();
+      const { data } = await supabase.from("cms_settings").select("*").eq("id", 1).maybeSingle();
       setSettingsRow(data);
     })();
   }, [session]);
