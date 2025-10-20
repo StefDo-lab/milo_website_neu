@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Ignore unintended submodule directory
+milo_website_neu
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
